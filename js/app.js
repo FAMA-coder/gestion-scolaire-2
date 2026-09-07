@@ -277,7 +277,9 @@ const items = NS.navGroups[grp].filter((it) => {
 
   async function roleOptions(selected) {
     const roles = await Auth.editableRoles();
+    const isSuper = Auth.isSuperAdmin();
     return roles.map((r) => {
+      if (r === 'super_admin' && !isSuper && String(selected) !== 'super_admin') return '';
       const rl = Auth.ROLES[r];
       return '<option value="' + r + '"' + (selected === r ? ' selected' : '') + '>' + UI.esc(rl ? rl.libelle : r) + '</option>';
     }).join('');
