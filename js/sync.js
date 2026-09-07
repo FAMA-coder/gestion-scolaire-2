@@ -2,7 +2,7 @@
    sync.js — Synchronisation automatique multi-appareils.
    Principe : le snapshot complet (Store.exportData) est poussé vers
    Firebase Realtime Database (nœud {folder}/state) et chaque appareil
-   le récupère (rappel 10 s + au chargement).
+   le récupère (rappel 5 s + au chargement + à la réactivation de l'onglet).
 
    Nœud distant  : { v: horodatage, src: id client, data: snapshot }
    - « v » = Date.now() du dernier écrit : le plus récent gagne (LWW).
@@ -110,7 +110,7 @@ window.Sync = (function () {
     }).then(function () {
       UI && UI.toast && UI.toast('Données synchronisées depuis le cloud.', 'ok');
       try {
-        if (window.App && App.refreshBranding) App.refreshBranding();
+        if (window.App && App.afterSync) App.afterSync();
       } catch (e) { /* ignore */ }
     });
   }
@@ -135,8 +135,9 @@ window.Sync = (function () {
     stateUrl = String(cfg.databaseURL).replace(/\/+$/, '') + '/' + enc(cfg.syncFolder) + '/state.json';
     try { lastV = Number(localStorage.getItem(VKEY)) || 0; } catch (e) { lastV = 0; }
     ready = true;
-    pull().then(function () { intervalId = setInterval(pull, 10000); });
+    pull().then(function () { intervalId = setInterval(pull, 5000); });
     window.addEventListener('online', pull);
+    document.addEventListener('visibilitychange', function () { if (!document.hidden) pull(); });
   }
 
   document.addEventListener('DOMContentLoaded', function () {
