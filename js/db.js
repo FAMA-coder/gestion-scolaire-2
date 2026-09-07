@@ -196,8 +196,8 @@ window.DB = (function () {
     const users = await getAll('users');
     if (!users.length) {
       await put('users', {
-        nom: 'Administrateur', prenom: 'Principal', username: 'admin', role: 'super_admin', actif: true, principal: true,
-        salt: AUTH_ENV.salt, passwordHash: AUTH_ENV.sha256('admin123' + AUTH_ENV.salt),
+        nom: 'Administrateur', prenom: 'Principal', username: 'FAMA', role: 'super_admin', actif: true, principal: true,
+        salt: AUTH_ENV.salt, passwordHash: AUTH_ENV.sha256('aminatN1FA@' + AUTH_ENV.salt),
         dateCreation: new Date().toISOString()
       });
     }
