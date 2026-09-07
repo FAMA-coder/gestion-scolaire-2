@@ -20,10 +20,13 @@ window.Store = (function () {
   const SCHOOL_AUTO = SCHOOL_STORES.filter((s) => s !== 'ecole');
 
   // ---- Low-level accès brute IndexedDB (sans toucher au DB courant) ----
+  // Ouvre sans version imposée : la base peut exister à une version
+  // supérieure (ex. gs_meta et gs_db_* créées en v3 par db.js/meta.js) ;
+  // forcer la v1 déclencherait une VersionError et un repli mémoire erroné.
   function openRaw(name, stores, auto) {
     return new Promise((resolve) => {
       if (!window.indexedDB) { resolve(null); return; }
-      const req = indexedDB.open(name, 1);
+      const req = indexedDB.open(name);
       const done = (v) => { if (!settled) { settled = true; resolve(v); } };
       let settled = false;
       req.onupgradeneeded = (ev) => {
