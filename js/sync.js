@@ -11,7 +11,9 @@
      réappliquée via Store.importData().
 
    DB put/add/del/clear → Sync.changed() déclenche un push (débouncé
-   1,5 s). Aucun push pendant une importation (garde applying).
+   1,5 s). Aucun push pendant une importation (garde applying), aucun
+   push avant la fin du premier tirage (garde bootstrap : évite que le
+   snapshot vide du démarrage écrase des données distantes plus récentes).
    Nécessite règles RTDB ouvertes en lecture/écriture + config dans
    js/firebase-config.js.
    ============================================================ */
@@ -21,8 +23,10 @@ window.Sync = (function () {
   var dirty = false;
   var pushTimer = null;
   var applying = false;
+  var pushing = false;
   var intervalId = null;
   var ready = false;
+  var bootstrap = true;
   var lastV = 0;
   var VKEY = 'gs_sync_v';
   var CID = window.crypto && window.crypto.randomUUID
@@ -56,14 +60,21 @@ window.Sync = (function () {
   function changed() {
     if (!enabled() || applying) return;
     dirty = true;
+    if (bootstrap) return;
     if (pushTimer) clearTimeout(pushTimer);
     pushTimer = setTimeout(push, 1500);
   }
 
+  function flush() {
+    if (bootstrap) return;
+    if (dirty && !pushTimer) pushTimer = setTimeout(push, 1500);
+  }
+
   function push() {
-    pushTimer = null;
-    if (!enabled() || !dirty || applying) return;
+    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+    if (!enabled() || !dirty || applying || pushing) return;
     dirty = false;
+    pushing = true;
     return Store.exportData().then(function (data) {
       var v = now();
       var payload = { v: v, src: CID, data: data };
@@ -80,6 +91,9 @@ window.Sync = (function () {
     }).catch(function (e) {
       dirty = true;
       console.warn('Sync push impossible :', e);
+    }).then(function () {
+      pushing = false;
+      flush();
     });
   }
 
@@ -102,13 +116,15 @@ window.Sync = (function () {
   }
 
   function pull() {
-    if (!enabled() || applying) return;
+    if (!enabled() || applying) return Promise.resolve();
     return fetchJson(stateUrl).then(function (snap) {
       if (!snap || !snap.data || snap.src === CID) return;
       if ((snap.v || 0) <= lastV) return;
       return applySnapshot(snap);
     }).catch(function (e) {
       if (e && e.message && e.message.indexOf('401') >= 0) console.warn('Sync : authentification requise (modifiez les règles RTDB).');
+    }).then(function () {
+      if (bootstrap) { bootstrap = false; flush(); }
     });
   }
 
@@ -119,8 +135,7 @@ window.Sync = (function () {
     stateUrl = String(cfg.databaseURL).replace(/\/+$/, '') + '/' + enc(cfg.syncFolder) + '/state.json';
     try { lastV = Number(localStorage.getItem(VKEY)) || 0; } catch (e) { lastV = 0; }
     ready = true;
-    pull();
-    intervalId = setInterval(pull, 10000);
+    pull().then(function () { intervalId = setInterval(pull, 10000); });
     window.addEventListener('online', pull);
   }
 
