@@ -86,12 +86,18 @@ window.Store = (function () {
   // Écrit toutes les tables d'une école (remplace le contenu).
   async function writeSchoolData(dbName, stores) {
     dbName = dbName || 'gs_db_default';
+    // Normalise les valeurs : RTDB convertit les tableaux vides en objet {}.
+    const norm = {};
+    for (const s of SCHOOL_STORES) {
+      const rows = stores[s];
+      norm[s] = Array.isArray(rows) ? rows : [];
+    }
     const db = await openRaw(dbName, SCHOOL_STORES, SCHOOL_AUTO);
     if (!db) {
       const mem = memRead(dbName);
       let next = memNext(dbName);
       SCHOOL_STORES.forEach((s) => {
-        const rows = stores[s] || [];
+        const rows = norm[s];
         mem[s] = rows;
         for (const r of rows) if ((r.id || 0) >= next) next = (r.id || 0) + 1;
       });
@@ -99,7 +105,7 @@ window.Store = (function () {
       return;
     }
     try {
-      for (const s of SCHOOL_STORES) await storeWriteAll(db, s, stores[s] || []);
+      for (const s of SCHOOL_STORES) await storeWriteAll(db, s, norm[s]);
     } finally {
       try { db.close(); } catch (e) { /* ignore */ }
     }
