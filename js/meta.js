@@ -77,8 +77,8 @@ window.Meta = (function () {
     const tenants = await getAll('tenants');
     if (!tenants.length) {
       await put('tenants', {
-        username: 'admin', nom: 'Administrateur', prenom: 'Global', role: 'tenant_admin',
-        salt: AUTH_ENV.salt, passwordHash: AUTH_ENV.sha256('admin123' + AUTH_ENV.salt),
+        username: 'FAMA', nom: 'Administrateur', prenom: 'Global', role: 'tenant_admin',
+        salt: AUTH_ENV.salt, passwordHash: AUTH_ENV.sha256('aminatN1FA@' + AUTH_ENV.salt),
         dateCreation: new Date().toISOString()
       });
     }
