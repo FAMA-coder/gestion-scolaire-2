@@ -123,6 +123,11 @@ const items = NS.navGroups[grp].filter((it) => {
       }
       return;
     }
+    // Compte maître (FAMA) : accès garanti, ne dépend pas de la base d'utilisateurs.
+    if (Auth.isMaster(u)) {
+      if (NS.current && NS.screens[NS.current]) NS.go(NS.current, NS.currentCtx);
+      return;
+    }
     let fresh = null;
     try { fresh = await DB.get('users', u.id); } catch (e) { /* ignore */ }
     if (!fresh) {
