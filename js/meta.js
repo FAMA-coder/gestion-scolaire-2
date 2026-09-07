@@ -175,7 +175,8 @@ window.Meta = (function () {
   function openSchoolDbRaw(name) {
     return new Promise((resolve) => {
       if (!window.indexedDB) { resolve(null); return; }
-      const req = indexedDB.open(name, 1);
+      // Ouvre à la version existante : les bases d'école sont en v3 (db.js).
+      const req = indexedDB.open(name);
       const done = (v) => { if (!settled) { settled = true; resolve(v); } };
       let settled = false;
       req.onupgradeneeded = (ev) => {
