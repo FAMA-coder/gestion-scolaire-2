@@ -54,6 +54,9 @@ window.Meta = (function () {
   function tx(store, mt) { if (mode === 'memory') return null; return db.transaction(store, mt).objectStore(store); }
   function rp(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
+  // Notifie la synchronisation après une écriture méta / compte utilisateur.
+  function notifySync() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ } }
+
   async function getAll(store) {
     if (mode === 'memory') return [...(memory[store] || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
     return rp(tx(store, 'readonly').getAll());
@@ -64,13 +67,13 @@ window.Meta = (function () {
       if (obj.id == null) obj.id = nextId++;
       const i = arr.findIndex((r) => r.id === obj.id);
       if (i >= 0) arr[i] = obj; else arr.push(obj);
-      storeMemory(); return obj.id;
+      storeMemory(); notifySync(); return obj.id;
     }
-    return rp(tx(store, 'readwrite').put(obj));
+    return rp(tx(store, 'readwrite').put(obj)).then((id) => { notifySync(); return id; });
   }
   async function del(store, id) {
-    if (mode === 'memory') { memory[store] = (memory[store] || []).filter((r) => r.id !== id); storeMemory(); return; }
-    return rp(tx(store, 'readwrite').delete(id));
+    if (mode === 'memory') { memory[store] = (memory[store] || []).filter((r) => r.id !== id); storeMemory(); notifySync(); return; }
+    return rp(tx(store, 'readwrite').delete(id)).then(() => { notifySync(); });
   }
 
   async function seed() {
@@ -239,10 +242,12 @@ window.Meta = (function () {
       if (user.id == null) { user.id = memNextId(dbName); memSetNextId(dbName, user.id + 1); users.push(user); }
       else { const i = users.findIndex((x) => x.id === user.id); if (i >= 0) users[i] = user; else users.push(user); }
       memSaveUsers(dbName, users);
+      notifySync();
       return { ok: true, id: user.id };
     }
     try {
       const res = await dbReq(d.transaction('users', 'readwrite').objectStore('users').put(user));
+      notifySync();
       return { ok: true, id: res };
     } catch (e) {
       return { ok: false, msg: 'Erreur d\'enregistrement : ' + e.message };
@@ -256,10 +261,12 @@ window.Meta = (function () {
     if (!d) {
       const users = memUsers(dbName).filter((x) => x.id !== userId);
       memSaveUsers(dbName, users);
+      notifySync();
       return { ok: true };
     }
     try {
       await dbReq(d.transaction('users', 'readwrite').objectStore('users').delete(userId));
+      notifySync();
       return { ok: true };
     } catch (e) {
       return { ok: false, msg: 'Erreur de suppression : ' + e.message };
@@ -346,9 +353,13 @@ window.Meta = (function () {
       memory.permissions = (memory.permissions || []).filter((p) => p.key !== PERM_KEY);
       memory.permissions.push({ key: PERM_KEY, perms: map, dateModif: new Date().toISOString() });
       storeMemory();
+      notifySync();
       return;
     }
-    try { await rp(tx('permissions', 'readwrite').put({ key: PERM_KEY, perms: map, dateModif: new Date().toISOString() })); }
+    try {
+      await rp(tx('permissions', 'readwrite').put({ key: PERM_KEY, perms: map, dateModif: new Date().toISOString() }));
+      notifySync();
+    }
     catch (e) { /* ignore */ }
   }
 
