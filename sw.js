@@ -3,7 +3,7 @@
    Stratégie : cache-first pour les ressources statiques (shell)
    + réseau en secours ; les données restent dans IndexedDB.
    ============================================================ */
-const VERSION = 'gestionscolaire-v8';
+const VERSION = 'gestionscolaire-v9';
 const PRECACHE = [
   './index.html',
   './sample_data.js',
@@ -14,6 +14,8 @@ const PRECACHE = [
   'js/ui.js',
   'js/meta.js',
   'js/storage.js',
+  'js/firebase-config.js',
+  'js/sync.js',
   'js/bridge.js',
   'js/excel.js',
   'js/pdf.js',
