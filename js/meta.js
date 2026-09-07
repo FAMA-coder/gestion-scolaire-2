@@ -293,6 +293,7 @@ window.Meta = (function () {
   }
 
   async function createAccount(school, data) {
+    if (data.role === 'super_admin') return { ok: false, msg: 'Seul le super administrateur peut créer un compte super administrateur.' };
     const dbName = school.db || 'gs_db_default';
     const users = await readUsersRaw(dbName);
     const un = String(data.username || '').trim().toLowerCase();
@@ -310,6 +311,7 @@ window.Meta = (function () {
     const users = await readUsersRaw(dbName);
     const existing = users.find((x) => x.id === Number(data.id));
     if (!existing) return { ok: false, msg: 'Compte introuvable.' };
+    if (data.role === 'super_admin' && existing.role !== 'super_admin') return { ok: false, msg: 'Seul le super administrateur peut attribuer le rôle super administrateur.' };
     const un = String(data.username || '').trim().toLowerCase();
     if (users.some((x) => x.id !== existing.id && x.username && x.username.toLowerCase() === un)) return { ok: false, msg: 'Cet identifiant existe déjà dans cette école.' };
     existing.nom = data.nom;
