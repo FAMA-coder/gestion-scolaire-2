@@ -138,6 +138,7 @@ window.DB = (function () {
   function rp(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
   // API facultative : opérations groupées
+  function notify() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ } }
   function beginBatch() { return { _stack: [], mode: 'idb' }; }
   function batchAdd(batch, store, obj) { batch._stack.push({ op: 'add', store, obj }); }
   function batchPut(batch, store, obj) { batch._stack.push({ op: 'put', store, obj }); }
@@ -155,6 +156,7 @@ window.DB = (function () {
       if (it.op === 'add') st.add(it.obj); else st.put(it.obj);
     }
     await new Promise((res, rej) => { txObj.oncomplete = () => res(); txObj.onerror = () => rej(txObj.error); txObj.onabort = () => rej(txObj.error); });
+    notify();
   }
 
   async function getAll(store) {
@@ -171,21 +173,21 @@ window.DB = (function () {
       if (obj.id == null) obj.id = nextId++;
       const i = arr.findIndex((r) => r.id === obj.id);
       if (i >= 0) arr[i] = obj; else arr.push(obj);
-      storeMemory(); return obj.id;
+      storeMemory(); notify(); return obj.id;
     }
-    return rp(tx(store, 'readwrite').put(obj));
+    const id = await rp(tx(store, 'readwrite').put(obj)); notify(); return id;
   }
   async function add(store, obj) {
-    if (mode === 'memory') { obj.id = nextId++; (memory[store] || (memory[store] = [])).push(obj); storeMemory(); return obj.id; }
-    return rp(tx(store, 'readwrite').add(obj));
+    if (mode === 'memory') { obj.id = nextId++; (memory[store] || (memory[store] = [])).push(obj); storeMemory(); notify(); return obj.id; }
+    const id = await rp(tx(store, 'readwrite').add(obj)); notify(); return id;
   }
   async function del(store, key) {
-    if (mode === 'memory') { memory[store] = (memory[store] || []).filter((r) => r.id !== key); storeMemory(); return; }
-    return rp(tx(store, 'readwrite').delete(key));
+    if (mode === 'memory') { memory[store] = (memory[store] || []).filter((r) => r.id !== key); storeMemory(); notify(); return; }
+    await rp(tx(store, 'readwrite').delete(key)); notify();
   }
   async function clear(store) {
-    if (mode === 'memory') { memory[store] = []; storeMemory(); return; }
-    return rp(tx(store, 'readwrite').clear());
+    if (mode === 'memory') { memory[store] = []; storeMemory(); notify(); return; }
+    await rp(tx(store, 'readwrite').clear()); notify();
   }
   async function count(store) {
     if (mode === 'memory') return (memory[store] || []).length;
