@@ -14,7 +14,8 @@ window.Store = (function () {
     'users', 'ecole', 'annees', 'trimestres', 'cycles', 'salles', 'niveaux',
     'classes', 'eleves', 'enseignants', 'matieres', 'affectations',
     'typesFrais', 'fraisEncaissements', 'fraisBordereaux', 'salaires',
-    'emplois', 'cours', 'notes', 'compositions', 'passages', 'journal'
+    'emplois', 'cours', 'notes', 'compositions', 'passages', 'journal',
+    'pointages', 'employes', 'paies', 'depenses'
   ];
   const SCHOOL_AUTO = SCHOOL_STORES.filter((s) => s !== 'ecole');
 
