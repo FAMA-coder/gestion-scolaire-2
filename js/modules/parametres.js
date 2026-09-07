@@ -173,7 +173,9 @@ window.Parametres = (function () {
   }
   async function roleOptions(selected) {
     const opts = [];
+    const isSuper = Auth.isSuperAdmin();
     Object.keys(Auth.ROLES).sort((a, b) => Auth.ROLES[a].ordre - Auth.ROLES[b].ordre).forEach((r) => {
+      if (r === 'super_admin' && !isSuper && String(selected) !== 'super_admin') return;
       opts.push('<option value="' + r + '"' + (selected === r ? ' selected' : '') + '>' + UI.esc(Auth.ROLES[r].libelle) + '</option>');
     });
     try {
@@ -206,6 +208,8 @@ window.Parametres = (function () {
       const pwd = body.querySelector('#uf-pwd').value;
       const actif = body.querySelector('#uf-actif').checked;
       if (!nom || !username || !role) { UI.toast('Renseignez nom, identifiant et rôle.', 'err'); return false; }
+      if (role === 'super_admin' && !Auth.isSuperAdmin()) { UI.toast('Seul le super administrateur peut créer un compte super administrateur.', 'err'); return false; }
+      if (!isNew && acc.role === 'super_admin' && !Auth.isSuperAdmin()) { UI.toast('Vous ne pouvez pas modifier un compte super administrateur.', 'err'); return false; }
       const all = await DB.getAll('users');
       if ((isNew ? all.some((u) => String(u.username).toLowerCase() === username.toLowerCase())
           : all.some((u) => u.id !== acc.id && String(u.username).toLowerCase() === username.toLowerCase()))) {
