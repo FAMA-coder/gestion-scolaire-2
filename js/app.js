@@ -6,6 +6,7 @@ window.App = (function () {
   NS.screens = {};
   NS.navGroups = {};
   NS.current = null;
+  NS.currentCtx = null;
 
   NS.register = function (key, screen) {
     NS.screens[key] = screen;
@@ -19,6 +20,7 @@ window.App = (function () {
     if (!s) { NS.go('dashboard', ctx); return; }
     if (s.perm && !Auth.can(s.perm)) { UI.toast('Accès refusé pour votre rôle.', 'err'); return; }
     NS.current = key;
+    NS.currentCtx = ctx || null;
     const content = document.getElementById('content');
     content.innerHTML = '';
     document.getElementById('topbar-title').textContent = s.title;
@@ -104,6 +106,40 @@ const items = NS.navGroups[grp].filter((it) => {
     NS.go('dashboard');
   }
 
+  // Rafraîchissement après une synchronisation arrivée d'un autre appareil :
+  // revalide la session courante (compte supprimé/désactivé à distance) puis
+  // re-rend l'écran affiché pour refléter les données à jour.
+  async function afterSync() {
+    try { await refreshBranding(); } catch (e) { /* ignore */ }
+    const u = Auth.currentUser();
+    if (!u) {
+      const metaScreen = document.getElementById('screen-meta');
+      if (metaScreen && !metaScreen.classList.contains('hidden')) {
+        try { renderSchools(); } catch (e) { /* ignore */ }
+        const am = NS.accountsModal;
+        if (am && am.m && am.m.modal && document.body.contains(am.m.modal)) {
+          try { await renderAccounts(am.m, am.body, am.schools, null); } catch (e) { /* ignore */ }
+        }
+      }
+      return;
+    }
+    let fresh = null;
+    try { fresh = await DB.get('users', u.id); } catch (e) { /* ignore */ }
+    if (!fresh) {
+      Auth.logout();
+      UI.toast('Votre compte a été supprimé sur un autre poste.', 'err');
+      showLogin();
+      return;
+    }
+    if (fresh.actif === false) {
+      Auth.logout();
+      UI.toast('Votre compte a été désactivé sur un autre poste.', 'err');
+      showLogin();
+      return;
+    }
+    if (NS.current && NS.screens[NS.current]) NS.go(NS.current, NS.currentCtx);
+  }
+
   // ---- Gestion des écoles (panneau admin global) ----
   function tenantUi() {
     const admin = document.getElementById('meta-admin');
@@ -129,21 +165,26 @@ const items = NS.navGroups[grp].filter((it) => {
     }, { size: 'modal modal-sm' });
   }
   function openAccessForm() {
-    Meta.allSchools().then((schools) => {
-      if (!schools.length) { UI.toast('Aucune école créée. Connectez-vous en COMPTE ADMIN pour la créer.', 'err'); return; }
-      const optsHtml = '<option value="">Choisir une école…</option>' + schools.map((s) => '<option value="' + s.id + '"' + (s.bloque ? ' disabled' : '') + '>' + UI.esc(s.nom) + (s.bloque ? ' (accès bloqué)' : '') + '</option>').join('');
-      UI.prompt('Connexion à votre école', `
-        <div class="field"><label>École *</label><select id="of-school" required>${optsHtml}</select></div>
-        <div class="field"><label>Identifiant *</label><input id="of-user" required placeholder="Identifiant"></div>
-        <div class="field"><label>Mot de passe *</label><input id="of-pwd" type="password" required placeholder="Mot de passe"></div>
-      `, async (body) => {
-        const schoolId = Number(body.querySelector('#of-school').value);
-        if (!schoolId) { UI.toast('Choisissez une école.', 'err'); return false; }
-        const ok = await openSchoolAndLogin(schoolId, body.querySelector('#of-user').value.trim(), body.querySelector('#of-pwd').value, body);
-        if (ok) { UI.closeModal(); return true; }
+    UI.prompt('Connexion à votre école', `
+      <div class="field"><label>Nom de l'école *</label><input id="of-school" required placeholder="Nom donné à l'école lors de sa création"></div>
+      <div class="field"><label>Identifiant *</label><input id="of-user" required placeholder="Identifiant"></div>
+      <div class="field"><label>Mot de passe *</label><input id="of-pwd" type="password" required placeholder="Mot de passe"></div>
+    `, async (body) => {
+      const nom = body.querySelector('#of-school').value.trim();
+      if (!nom) { UI.toast('Saisissez le nom de l\'école.', 'err'); return false; }
+      const schools = await Meta.allSchools();
+      if (!schools.length) { UI.toast('Aucune école créée. Connectez-vous en COMPTE ADMIN pour la créer.', 'err'); return false; }
+      const s = schools.find((x) => String(x.nom || '').trim().toLowerCase() === nom.toLowerCase());
+      if (!s) {
+        let errBox = body.querySelector('.of-error');
+        if (!errBox) { errBox = document.createElement('div'); errBox.className = 'login-error of-error'; body.appendChild(errBox); }
+        errBox.textContent = 'École introuvable. Vérifiez le nom exact saisi lors de la création.';
         return false;
-      }, { size: 'modal modal-sm' });
-    });
+      }
+      const ok = await openSchoolAndLogin(s.id, body.querySelector('#of-user').value.trim(), body.querySelector('#of-pwd').value, body);
+      if (ok) { UI.closeModal(); return true; }
+      return false;
+    }, { size: 'modal modal-sm' });
   }
   async function openSchoolAndLogin(schoolId, un, pw, body) {
     const s = await Meta.getSchool(schoolId);
@@ -240,6 +281,7 @@ const items = NS.navGroups[grp].filter((it) => {
     const m = UI.modal('', '', { title: 'Gestion des comptes utilisateurs', size: 'modal modal-lg' });
     const body = m.modal.querySelector('.modal-body');
     await renderAccounts(m, body, schools, null);
+    NS.accountsModal = { m: m, body: body, schools: schools };
   }
 
   async function renderAccounts(m, body, schools, selectedId) {
@@ -495,6 +537,8 @@ const items = NS.navGroups[grp].filter((it) => {
   NS.showLogin = showLogin;
   NS.showMeta = showMeta;
   NS.refreshBranding = refreshBranding;
+  NS.afterSync = afterSync;
+  NS.accountsModal = null;
   return NS;
 })();
 
