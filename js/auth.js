@@ -99,6 +99,11 @@ window.Auth = (function () {
     return list.indexOf(perm) >= 0;
   }
 
+  function isSuperAdmin(u) {
+    u = u || current || currentUser();
+    return !!(u && u.role === 'super_admin');
+  }
+
   // Affectations (classe, matière) de l'enseignant connecté
   async function myAssignments() {
     const u = current || currentUser();
@@ -160,7 +165,7 @@ window.Auth = (function () {
     ROLES: ROLES, PERMS: PERMS, hashPassword: hashPassword,
     login: login, logout: logout, currentUser: currentUser,
     roleLib: roleLib, roleShort: roleShort, roleClass: roleClass, roleIcone: roleIcone,
-    can: can, editableRoles: editableRoles, permsOrDefault: permsOrDefault, permsFor: permsFor, setPermissions: setPermissions,
+    can: can, editableRoles: editableRoles, permsOrDefault: permsOrDefault, permsFor: permsFor, setPermissions: setPermissions, isSuperAdmin: isSuperAdmin,
     myAssignments: myAssignments, myStudent: myStudent,
     log: log, roleName: roleName, isPrincipalAdmin: isPrincipalAdmin
   };
