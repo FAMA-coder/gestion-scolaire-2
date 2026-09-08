@@ -142,12 +142,24 @@
 <script src="js/install.js"></script>
 <script src="js/init.js"></script>
 <script>
-  // Enregistrement du service worker (PWA) : application installable et hors ligne
+  // Service worker (PWA) : installable, hors ligne, et mise à jour AUTOMATIQUE.
+  // À chaque ouverture, on force la vérification d'une nouvelle version (reg.update()).
+  // Si une version plus récente existe : skipWaiting + clients.claim s'activent,
+  // l'événement controllerchange relance la page UNE seule fois pour servir les
+  // derniers fichiers. Équivalent automatisé du « Ctrl+F5 × 2 », sans action manuelle,
+  // sur chaque poste et à chaque démarrage du site.
   if ('serviceWorker' in navigator) {
+    var wasControlled = !!navigator.serviceWorker.controller;
+    var autoReloaded = false;
+    navigator.serviceWorker.addEventListener('controllerchange', function () {
+      if (!wasControlled || autoReloaded) return; // 1re installation : pas de relance
+      autoReloaded = true;
+      window.location.reload();
+    });
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('sw.js').catch(function (e) {
-        console.warn('Service Worker non enregistré :', e);
-      });
+      navigator.serviceWorker.register('sw.js')
+        .then(function (r) { return r.update(); })
+        .catch(function (e) { console.warn('Service Worker non enregistré :', e); });
     });
   }
 </script>
