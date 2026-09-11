@@ -81,23 +81,37 @@
         <span class="badge badge-danger">Admin global</span>
         <div class="meta-admin-actions">
           <button id="btn-lic-generator" class="btn btn-sm btn-primary" title="Générer une clé d'activation pour une installation">Générateur de licence</button>
-          <button id="btn-tenant-edit" class="btn btn-sm btn-outline">Modifier identifiants</button>
           <button id="btn-tenant-logout" class="btn btn-sm btn-ghost">Déconnexion</button>
         </div>
       </div>
-      <div class="school-admin-head">
-        <span class="school-admin-title">Gestion des écoles</span>
-        <button id="btn-create-school" class="btn btn-sm btn-primary">+ Créer une école</button>
-      </div>
-      <div id="school-list" class="school-list"></div>
-      <div class="account-admin-head">
-        <span class="account-admin-title">Gestion des comptes utilisateurs & accès</span>
-        <div class="account-admin-btns">
-          <button id="btn-manage-perms" class="btn btn-sm btn-outline">Accès par rôle</button>
-          <button id="btn-manage-accounts" class="btn btn-sm btn-primary">CRÉER COMPTE UTILISATEUR</button>
+      <form id="admin-form" autocomplete="off">
+        <div class="bar"><div class="card-title">Compte admin (global)</div></div>
+        <div class="field"><label>Identifiant global *</label><input id="af-username" required autocomplete="off" autocapitalize="none" autocorrect="off"></div>
+        <div class="row">
+          <div class="field" style="flex:1"><label>Mot de passe actuel *</label><input id="af-cur-pwd" type="password" required autocomplete="new-password"></div>
+          <div class="field" style="flex:1"><label>Nouveau mot de passe</label><input id="af-new-pwd" type="password" autocomplete="new-password"></div>
         </div>
-      </div>
-      <div id="account-list" class="school-list"><div class="account-empty">Connectez-vous en COMPTE ADMIN (global) pour créer, modifier ou supprimer les comptes de chaque école.</div></div>
+        <div class="row">
+          <div class="field" style="flex:1"><label>Confirmation du nouveau mot de passe</label><input id="af-new-pwd2" type="password" autocomplete="new-password"></div>
+          <div class="field" style="flex:1; align-self:flex-end"><button type="submit" class="btn btn-primary btn-block">Enregistrer le compte admin</button></div>
+        </div>
+
+        <div class="bar" style="margin-top:6px"><div class="card-title">Gestion des écoles</div></div>
+        <div class="row">
+          <div class="field" style="flex:1"><label>Nom de la nouvelle école</label><input id="af-new-school" placeholder="Ex : Collège Saint-Joseph"></div>
+          <div class="field" style="align-self:flex-end"><button type="button" id="af-create-school" class="btn btn-primary">+ Créer l'école</button></div>
+        </div>
+        <div id="school-list" class="school-list"></div>
+
+        <div class="account-admin-head">
+          <span class="account-admin-title">Comptes utilisateurs & niveaux d'accès</span>
+          <div class="account-admin-btns">
+            <button type="button" id="btn-manage-perms" class="btn btn-sm btn-outline">Accès par rôle</button>
+            <button type="button" id="btn-manage-accounts" class="btn btn-sm btn-primary">CRÉER COMPTE UTILISATEUR</button>
+          </div>
+        </div>
+        <div id="account-list" class="school-list"><div class="account-empty">Connectez-vous en COMPTE ADMIN (global) pour créer, modifier ou supprimer les comptes de chaque école.</div></div>
+      </form>
     </div>
   </div>
 </div>
