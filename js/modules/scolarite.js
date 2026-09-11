@@ -238,7 +238,7 @@ App.register('eleves', {
             '<td>' + (e.sexe === 'M' ? 'M' : e.sexe === 'F' ? 'F' : '–') + '</td>' +
             '<td>' + (e.dateNaissance ? UI.dateFr(e.dateNaissance) : '–') + '</td>' +
             '<td><span class="badge badge-info">' + UI.esc(cl ? Data.classeLabel(cl) : 'Non affecté') + '</span></td>' +
-            '<td><span class="badge ' + tClass + '">' + tLabel + '</span></td>' +
+            '<td><span class="badge ' + tClass + '">' + tLabel + '</span>' + (e.dispenseFrais ? ' <span class="badge badge-gray">Dispensé frais</span>' : '') + '</td>' +
             '<td>' + (e.actif === false ? '<span class="badge badge-gray">Inactif</span>' : '<span class="badge badge-ok">Actif</span>') + '</td>' +
             '<td class="actions-cell">' +
               '<button class="btn btn-sm btn-outline" data-edit="' + e.id + '">Modifier</button>' +
@@ -285,6 +285,8 @@ App.register('eleves', {
           <option value="cas_social"${(e.typeEleve || '') === 'cas_social' ? ' selected' : ''}>Cas social</option>
         </select>
         <small class="hint">Étatique et Privé paient tous les frais ; Cas social paie uniquement les frais ci-dessous (sinon rien).</small></div>
+        <div class="field"><label><input type="checkbox" id="e-disp"${e.dispenseFrais ? ' checked' : ''}> <b>Dispensé(e) des frais scolaires</b> — ne doit pas payer</label>
+        <small class="hint">Ce choix est pris en compte dans le suivi des paiements : l'élève sera marqué « Dispensé ».</small></div>
         <div class="field"><div id="e-frais-box" class="${(e.typeEleve || '') === 'cas_social' ? '' : 'hidden'}">
           <label>Frais applicables (cas social)</label>
           ${typesFrais.length ? typesFrais.map(t => '<label style="display:block;font-weight:400"><input type="checkbox" id="e-frais-' + t.id + '"' + ((e.fraisTypesIds || []).indexOf(t.id) >= 0 ? ' checked' : '') + '> ' + UI.esc(t.libelle) + '</label>').join('') : '<span class="hint">Aucun type de frais défini.</span>'}
@@ -315,6 +317,7 @@ App.register('eleves', {
           tuteur: body.querySelector('#e-tuteur').value.trim(),
           telTuteur: body.querySelector('#e-tel').value.trim(),
           typeEleve: body.querySelector('#e-type').value,
+          dispenseFrais: !!(body.querySelector('#e-disp') && body.querySelector('#e-disp').checked),
           fraisTypesIds: body.querySelector('#e-type').value === 'cas_social'
             ? typesFrais.filter(t => body.querySelector('#e-frais-' + t.id) && body.querySelector('#e-frais-' + t.id).checked).map(t => t.id)
             : null,
