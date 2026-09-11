@@ -55,7 +55,8 @@ window.Meta = (function () {
   function rp(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
   // Notifie la synchronisation après une écriture méta / compte utilisateur.
-  function notifySync() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ } }
+  function notifySync() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ }
+    try { if (window.LanSync && LanSync.changed) LanSync.changed(); } catch (e) { /* ignore */ } }
 
   async function getAll(store) {
     if (mode === 'memory') return [...(memory[store] || [])].sort((a, b) => (a.id || 0) - (b.id || 0));
@@ -364,12 +365,30 @@ window.Meta = (function () {
     catch (e) { /* ignore */ }
   }
 
+  // Clés de permission ADDITIONNELLES introduites lors de la granularisation
+  // des accès (mai 2026). Une matrice enregistrée AVANT cette mise à jour ne les
+  // contient pas : on les fusionne depuis les valeurs par défaut sans jamais
+  // retirer un accès déjà accordé. Les retraits explicites existants sont conservés.
+  const PERMS_V2 = ['annees.manage', 'cartes.manage', 'volumes.manage', 'pointage.manage',
+    'controle.heures', 'honoraires.manage', 'parametres.sauvegarde', 'parametres.synchro',
+    'parametres.journal', 'statistiques.view'];
+
   // Retourne la matrice par rôle (fusion avec les valeurs par défaut de Auth).
   async function getPermissions() {
     const base = Auth.permsOrDefault();
     const row = await getPermissionsRaw();
     const out = {};
-    Object.keys(base).forEach((r) => { out[r] = (row && row.perms && row.perms[r]) ? row.perms[r].slice() : base[r].slice(); });
+    Object.keys(base).forEach((r) => {
+      if (row && row.perms && row.perms[r]) {
+        const list = row.perms[r].slice();
+        (base[r] || []).forEach((p) => {
+          if (PERMS_V2.indexOf(p) >= 0 && list.indexOf(p) < 0) list.push(p);
+        });
+        out[r] = list;
+      } else {
+        out[r] = base[r].slice();
+      }
+    });
     if (row && row.perms) {
       Object.keys(row.perms).forEach((r) => {
         if (!(r in out) && !Auth.ROLES[r]) { out[r] = row.perms[r].slice(); }
@@ -428,6 +447,68 @@ window.Meta = (function () {
     return { ok: true };
   }
 
+  // ==== Lecture / écriture directes dans la base d'UNE AUTRE école ====
+  // (transferts d'élèves entre établissements). N'affecte pas le DB courant.
+  async function readStoreRaw(dbName, store) {
+    dbName = dbName || 'gs_db_default';
+    const d = await openSchoolDbRaw(dbName);
+    if (!d) {
+      const mem = memStore(dbName).read();
+      return (mem[store] || []).slice().sort((a, b) => (a.id || 0) - (b.id || 0));
+    }
+    try {
+      const req = d.transaction(store, 'readonly').objectStore(store).getAll();
+      return await dbReq(req) || [];
+    } catch (e) {
+      return [];
+    } finally {
+      try { d.close(); } catch (e) { /* ignore */ }
+    }
+  }
+  async function writeStoreRaw(dbName, store, obj) {
+    dbName = dbName || 'gs_db_default';
+    const d = await openSchoolDbRaw(dbName);
+    if (!d) {
+      const st = memStore(dbName);
+      const mem = st.read();
+      const arr = mem[store] || (mem[store] = []);
+      if (obj.id == null) { obj.id = memNextId(dbName); memSetNextId(dbName, obj.id + 1); arr.push(obj); }
+      else { const i = arr.findIndex((x) => x.id === obj.id); if (i >= 0) arr[i] = obj; else arr.push(obj); }
+      st.write(mem);
+      notifySync();
+      return { ok: true, id: obj.id };
+    }
+    try {
+      const res = await dbReq(d.transaction(store, 'readwrite').objectStore(store).put(obj));
+      notifySync();
+      return { ok: true, id: res };
+    } catch (e) {
+      return { ok: false, msg: 'Erreur d\'écriture : ' + e.message };
+    } finally {
+      try { d.close(); } catch (e) { /* ignore */ }
+    }
+  }
+  async function delStoreRaw(dbName, store, id) {
+    dbName = dbName || 'gs_db_default';
+    const d = await openSchoolDbRaw(dbName);
+    if (!d) {
+      const st = memStore(dbName);
+      const mem = st.read();
+      if (mem[store]) { mem[store] = mem[store].filter((x) => x.id !== id); st.write(mem); }
+      notifySync();
+      return { ok: true };
+    }
+    try {
+      await dbReq(d.transaction(store, 'readwrite').objectStore(store).delete(id));
+      notifySync();
+      return { ok: true };
+    } catch (e) {
+      return { ok: false, msg: e.message };
+    } finally {
+      try { d.close(); } catch (e) { /* ignore */ }
+    }
+  }
+
   return {
     ready: ready, allSchools: allSchools, getSchool: getSchool, dbNameFor: (s) => (s && s.db) || 'gs_db_default',
     createSchool: createSchool, renameSchool: renameSchool, deleteSchool: deleteSchool, setSchoolBlocked: setSchoolBlocked,
@@ -435,6 +516,7 @@ window.Meta = (function () {
     currentSchoolId: currentSchoolId, setCurrentSchool: setCurrentSchool, currentSchoolName: currentSchoolName,
     listAllAccounts: listAllAccounts, createAccount: createAccount, updateAccount: updateAccount, deleteAccount: deleteAccount,
     getPermissions: getPermissions, savePermissions: savePermissionsRaw,
-    getAllRoles: getAllRoles, addCustomRole: addCustomRole, deleteCustomRole: deleteCustomRole, renameCustomRole: renameCustomRole
+    getAllRoles: getAllRoles, addCustomRole: addCustomRole, deleteCustomRole: deleteCustomRole, renameCustomRole: renameCustomRole,
+    readStoreRaw: readStoreRaw, writeStoreRaw: writeStoreRaw, delStoreRaw: delStoreRaw
   };
 })();
