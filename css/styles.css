@@ -399,3 +399,49 @@ small.hint { color: var(--gray-400); font-size: 11.5px; }
 #install-btn:hover { background: #1d4ed8; box-shadow: 0 6px 18px rgba(37, 99, 235, 0.55); }
 #install-btn:active { transform: translateY(1px); }
 #install-btn[hidden] { display: none; }
+
+/* ===== Écran de licence (application bureau) ===== */
+html.gs-boot { visibility: hidden; }
+#screen-license .login-card.lic-card { max-width: 540px; }
+.lic-status { margin-bottom: 16px; }
+.lic-status .bar { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin-bottom: 0; }
+.lic-status .hint { font-size: 12.5px; color: var(--gray-500); }
+
+.lic-code {
+  background: #eff6ff;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 16px;
+}
+.lic-code-label { font-size: 11px; font-weight: 700; letter-spacing: .3px; color: #1e40af; text-transform: uppercase; }
+.lic-code-value {
+  font-family: Consolas, Menlo, monospace;
+  font-size: 20px;
+  font-weight: 700;
+  color: #2563eb;
+  margin: 4px 0 2px;
+  letter-spacing: 2px;
+}
+.lic-code .hint { font-size: 12px; color: var(--gray-500); margin: 0; }
+#lic-status-line { margin-top: 4px; }
+#screen-license .row { grid-template-columns: 1fr 1fr; }
+@media (max-width: 520px) { #screen-license .row { grid-template-columns: 1fr; } }
+
+/* Coordonnées de l'éditeur (obtention / renouvellement de licence) */
+.lic-editor {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  margin-bottom: 16px;
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+.lic-editor-title { font-size: 11px; font-weight: 700; letter-spacing: .3px; text-transform: uppercase; color: var(--gray-500); margin-bottom: 4px; }
+.lic-editor-line { margin: 2px 0; }
+.lic-editor-line a { color: var(--primary); text-decoration: none; }
+.lic-editor-line a:hover { text-decoration: underline; }
+
+/* Bouton « Licence » (renouvellement volontaire) de la barre supérieure */
+.topbar-renew { margin-right: 4px; }
