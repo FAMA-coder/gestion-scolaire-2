@@ -529,6 +529,25 @@ const items = NS.navGroups[grp].filter((it) => {
         UI.toast(hidden ? 'Bouton « COMPTE ADMIN (global) » affiché.' : 'Bouton « COMPTE ADMIN (global) » masqué.', hidden ? 'ok' : 'err');
       }
     }, true);
+    // Sur mobile/pavé tactile : 5 appuis rapides sur le logo GS révèlent
+    // le bouton « COMPTE ADMIN (global) » (équivalent du raccourci Ctrl+Shift+A).
+    (function () {
+      const el = document.getElementById('meta-logo');
+      if (!el) return;
+      let taps = 0, last = 0;
+      el.addEventListener('click', () => {
+        const now = Date.now();
+        taps = (now - last < 1500) ? taps + 1 : 1;
+        last = now;
+        if (taps < 5) return;
+        taps = 0;
+        const b = document.getElementById('btn-admin-login');
+        if (!b) return;
+        const hidden = b.classList.contains('hidden');
+        b.classList.toggle('hidden', !hidden);
+        UI.toast(hidden ? 'Bouton « COMPTE ADMIN (global) » affiché.' : 'Bouton « COMPTE ADMIN (global) » masqué.', hidden ? 'ok' : 'err');
+      });
+    })();
   }
 
   function init() {
