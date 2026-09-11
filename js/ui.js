@@ -178,6 +178,12 @@ window.UI = (function () {
     pr.innerHTML = '<div class="bulletin-wrap">' + fragment + '</div>';
     const oldTitle = document.title;
     if (title) document.title = title;
+    if (window.Desktop && Desktop.isDesktop()) {
+      // Application bureau : le composant WebView2 ouvre le dialogue d'impression.
+      Desktop.showPrint().catch(() => { /* ignore */ });
+      setTimeout(() => { document.title = oldTitle; pr.innerHTML = ''; }, 2500);
+      return;
+    }
     window.print();
     document.title = oldTitle;
     setTimeout(() => { pr.innerHTML = ''; }, 200);
