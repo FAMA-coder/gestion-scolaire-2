@@ -9,6 +9,7 @@ window.Frais = (function () {
   // Sinon (legacy) on retombe sur montant/cycleId, puis montants par classe.
   function montantPour(tf, classeId, niveauId, eleve) {
     if (!tf) return null;
+    if (eleve && eleve.dispenseFrais === true) return 0; // élève dispensé : ne doit rien payer
     if (eleve && eleve.typeEleve === 'cas_social') {
       const ids = eleve.fraisTypesIds || [];
       if (!ids.length) return 0;
@@ -173,15 +174,32 @@ App.register('frais', {
         const q = (el.querySelector('#suivi-q').value || '').trim().toLowerCase();
         const rows = [];
         const totals = { due: 0, paid: 0, reste: 0 };
+        let dispenses = 0;
         eleves.slice().sort((a, b) => (a.nom || '').localeCompare(b.nom || '')).forEach((ev) => {
           const cl = classes.find(c => c.id === ev.classeId);
           if (clsF && Number(cl && cl.id) !== clsF) return;
           if (q && !String((ev.nom || '') + ' ' + (ev.prenom || '') + ' ' + (ev.matricule || '')).toLowerCase().includes(q)) return;
+          const dispense = ev.dispenseFrais === true;
           typesFrais.forEach((tf) => {
-            const due = Frais.montantPour(tf, ev.classeId, cl && cl.niveauId, ev);
-            if (!(due > 0)) return;
             const g = paidMap[ev.id + '_' + tf.id] || { paid: 0, list: [] };
             const paid = g.paid;
+            if (dispense) {
+              dispenses++;
+              rows.push('<tr>' +
+                '<td><strong>' + UI.esc(Data.personneNom(ev)) + '</strong><div class="muted">' + UI.esc(cl ? Data.classeLabel(cl) : '—') + '</div></td>' +
+                '<td>' + UI.esc(tf.libelle) + '</td>' +
+                '<td class="num">—</td>' +
+                '<td class="num">' + UI.money(paid) + '</td>' +
+                '<td class="num">—</td>' +
+                '<td><span class="badge badge-gray">Dispensé</span></td>' +
+                '<td class="actions-cell">' +
+                  '<button class="btn btn-sm btn-outline" data-ndisp="' + ev.id + '">Réactiver le paiement</button>' +
+                  (g.list.length ? '<button class="btn btn-sm btn-ghost" data-hist="' + ev.id + '_' + tf.id + '">Historique</button>' : '') +
+                '</td></tr>');
+              return;
+            }
+            const due = Frais.montantPour(tf, ev.classeId, cl && cl.niveauId, ev);
+            if (!(due > 0)) return;
             const reste = Math.max(0, due - paid);
             const st = Frais.statut(due, paid);
             const badge = st === 'soldé' ? 'badge-ok' : (st === 'partiel' ? 'badge-warn' : 'badge-danger');
@@ -194,14 +212,34 @@ App.register('frais', {
               '<td class="num"><b>' + (reste > 0 ? UI.money(reste) : '—') + '</b></td>' +
               '<td><span class="badge ' + badge + '">' + statusTxt(st) + '</span></td>' +
               '<td class="actions-cell"><button class="btn btn-sm btn-outline" data-tranche="' + ev.id + '_' + tf.id + '">Encaisser</button>' +
+              '<button class="btn btn-sm btn-outline" data-disp="' + ev.id + '" title="Dispenser cet élève de ce frais">Dispenser</button>' +
               (g.list.length ? '<button class="btn btn-sm btn-ghost" data-hist="' + ev.id + '_' + tf.id + '">Historique</button>' : '') +
               '</td></tr>');
           });
         });
-        listEl.innerHTML = '<div class="card-sub" style="margin-bottom:8px">Total dû : <b>' + UI.money(totals.due) + '</b> · Encaissé : <b>' + UI.money(totals.paid) + '</b> · Reste à payer : <b>' + UI.money(totals.reste) + '</b></div>' +
+        listEl.innerHTML = '<div class="card-sub" style="margin-bottom:8px">Total dû : <b>' + UI.money(totals.due) + '</b> · Encaissé : <b>' + UI.money(totals.paid) + '</b> · Reste à payer : <b>' + UI.money(totals.reste) + '</b>' +
+          (dispenses ? ' · <span class="badge badge-gray">' + dispenses + ' ligne(s) dispensée(s)</span>' : '') + '</div>' +
           UI.table(['Élève', 'Type de frais', 'Dû', 'Payé', 'Solde', 'Statut', 'Actions'], rows.join('') || UI.empty(7));
         listEl.querySelectorAll('[data-tranche]').forEach((b) => b.onclick = () => payerTranche(b.dataset.tranche, paidMap));
         listEl.querySelectorAll('[data-hist]').forEach((b) => b.onclick = () => histModal(b.dataset.hist, paidMap));
+        listEl.querySelectorAll('[data-disp]').forEach((b) => b.onclick = async () => {
+          const ev = eleves.find((x) => x.id === Number(b.dataset.disp));
+          if (!ev) return;
+          ev.dispenseFrais = true;
+          await DB.put('eleves', ev);
+          await Auth.log('Modification', 'frais', 'Dispense des frais — ' + Data.personneNom(ev));
+          UI.toast(Data.personneNom(ev) + ' dispensé(e) des frais.', 'ok');
+          renderSuivi();
+        });
+        listEl.querySelectorAll('[data-ndisp]').forEach((b) => b.onclick = async () => {
+          const ev = eleves.find((x) => x.id === Number(b.dataset.ndisp));
+          if (!ev) return;
+          delete ev.dispenseFrais;
+          await DB.put('eleves', ev);
+          await Auth.log('Modification', 'frais', 'Réactivation du paiement — ' + Data.personneNom(ev));
+          UI.toast('Paiement réactivé pour ' + Data.personneNom(ev) + '.', 'ok');
+          renderSuivi();
+        });
       };
       el.querySelector('#suivi-cls').onchange = renderRows;
       el.querySelector('#suivi-q').addEventListener('input', renderRows);
