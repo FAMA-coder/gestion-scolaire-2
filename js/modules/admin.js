@@ -230,12 +230,12 @@ async function formPersonnel(e, afterSave) {
     <div class="field"><label><input type="checkbox" id="ad-acc"> Créer un compte utilisateur au nom de cet employé ?</label></div>
     <div id="ad-acc-box" class="hidden">
       <div class="row">
-        <div class="field"><label>Identifiant *</label><input id="ad-acc-user" placeholder="Ex : nom.prenom"></div>
+        <div class="field"><label>Identifiant *</label><input id="ad-acc-user" placeholder="Ex : nom.prenom" autocomplete="off" autocapitalize="none" autocorrect="off"></div>
         <div class="field"><label>Rôle *</label><select id="ad-acc-role">${roleSel('')}</select></div>
       </div>
       <div class="row">
-        <div class="field"><label>Mot de passe *</label><input id="ad-acc-pwd" type="password"></div>
-        <div class="field"><label>Confirmation *</label><input id="ad-acc-pwd2" type="password"></div>
+        <div class="field"><label>Mot de passe *</label><input id="ad-acc-pwd" type="password" autocomplete="new-password"></div>
+        <div class="field"><label>Confirmation *</label><input id="ad-acc-pwd2" type="password" autocomplete="new-password"></div>
       </div>
     </div>` : ''}
   `, async (body) => {
