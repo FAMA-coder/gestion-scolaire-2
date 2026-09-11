@@ -29,9 +29,39 @@ window.Sync = (function () {
   var bootstrap = true;
   var lastV = 0;
   var VKEY = 'gs_sync_v';
+  // Personnalisation de la synchronisation en ligne (Paramètres → Synchronisation) :
+  // { enabled, databaseURL, syncFolder }, conservée entre deux lancements.
+  var OSYNC_KEY = 'gs_online_sync';
   var CID = window.crypto && window.crypto.randomUUID
     ? window.crypto.randomUUID()
     : (Math.random().toString(36).slice(2) + Date.now().toString(36));
+
+  function readOverride() {
+    try {
+      var raw = localStorage.getItem(OSYNC_KEY);
+      if (raw) {
+        var o = JSON.parse(raw);
+        if (o && typeof o.enabled === 'boolean') return o;
+      }
+    } catch (e) { /* ignore */ }
+    return null;
+  }
+
+  // FIREBASE_CONFIG (js/firebase-config.js) éventuellement surchargée par la
+  // configuration enregistrée depuis les paramètres.
+  function described() {
+    var base = window.FIREBASE_CONFIG || {};
+    var o = readOverride();
+    if (!o) return base;
+    return {
+      enabled: !!o.enabled,
+      apiKey: base.apiKey, authDomain: base.authDomain, projectId: base.projectId,
+      storageBucket: base.storageBucket, messagingSenderId: base.messagingSenderId,
+      appId: base.appId, measurementId: base.measurementId,
+      databaseURL: o.databaseURL || base.databaseURL || '',
+      syncFolder: o.syncFolder || base.syncFolder || ''
+    };
+  }
 
   function enabled() {
     return !!(cfg && cfg.enabled && cfg.databaseURL && cfg.syncFolder && window.fetch);
@@ -129,9 +159,12 @@ window.Sync = (function () {
   }
 
   function start() {
-    if (!enabled() || ready) return;
-    cfg = window.FIREBASE_CONFIG || null;
-    if (!cfg.enabled) { console.info('Sync désactivé : FIREBASE_CONFIG.enabled = false.'); ready = true; return; }
+    cfg = described();
+    if (ready) return;
+    if (!enabled()) {
+      if (cfg && !cfg.enabled) console.info('Sync désactivé : synchronisation en ligne non configurée.');
+      return;
+    }
     stateUrl = String(cfg.databaseURL).replace(/\/+$/, '') + '/' + enc(cfg.syncFolder) + '/state.json';
     try { lastV = Number(localStorage.getItem(VKEY)) || 0; } catch (e) { lastV = 0; }
     ready = true;
@@ -140,8 +173,47 @@ window.Sync = (function () {
     document.addEventListener('visibilitychange', function () { if (!document.hidden) pull(); });
   }
 
+  function stop() {
+    if (intervalId) { clearInterval(intervalId); intervalId = null; }
+    ready = false;
+    bootstrap = true;
+    dirty = false;
+    if (pushTimer) { clearTimeout(pushTimer); pushTimer = null; }
+  }
+
+  function reconfigure() {
+    stop();
+    cfg = described();
+    start();
+  }
+
+  // État courant de la synchronisation en ligne (pour l'interface des paramètres).
+  function getConfig() {
+    var c = described();
+    return {
+      enabled: !!c.enabled,
+      databaseURL: c.databaseURL || '',
+      syncFolder: c.syncFolder || '',
+      overridden: !!readOverride()
+    };
+  }
+
+  // Enregistre la configuration en ligne depuis l'interface puis (re)démarre.
+  function setConfig(o) {
+    var url = o && String(o.databaseURL || '').trim();
+    var folder = o && String(o.syncFolder || '').trim();
+    if (!url || !folder) return getConfig();
+    try {
+      localStorage.setItem(OSYNC_KEY, JSON.stringify({
+        enabled: !!o.enabled, databaseURL: url, syncFolder: folder
+      }));
+    } catch (e) { /* stockage indisponible : config non persistée */ }
+    reconfigure();
+    return getConfig();
+  }
+
   document.addEventListener('DOMContentLoaded', function () {
-    if (window.FIREBASE_CONFIG) cfg = window.FIREBASE_CONFIG;
+    cfg = described();
     start();
   });
 
@@ -150,6 +222,10 @@ window.Sync = (function () {
     changed: changed,
     pull: pull,
     start: start,
+    stop: stop,
+    reconfigure: reconfigure,
+    getConfig: getConfig,
+    setConfig: setConfig,
     get stateUrl() { return stateUrl; },
     get ready() { return ready; }
   };
