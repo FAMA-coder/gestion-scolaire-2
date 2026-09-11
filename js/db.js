@@ -138,7 +138,8 @@ window.DB = (function () {
   function rp(req) { return new Promise((res, rej) => { req.onsuccess = () => res(req.result); req.onerror = () => rej(req.error); }); }
 
   // API facultative : opérations groupées
-  function notify() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ } }
+  function notify() { try { if (window.Sync && Sync.changed) Sync.changed(); } catch (e) { /* ignore */ }
+    try { if (window.LanSync && LanSync.changed) LanSync.changed(); } catch (e) { /* ignore */ } }
   function beginBatch() { return { _stack: [], mode: 'idb' }; }
   function batchAdd(batch, store, obj) { batch._stack.push({ op: 'add', store, obj }); }
   function batchPut(batch, store, obj) { batch._stack.push({ op: 'put', store, obj }); }
