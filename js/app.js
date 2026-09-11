@@ -152,8 +152,8 @@ const items = NS.navGroups[grp].filter((it) => {
   }
   function adminLoginForm() {
     UI.prompt('Connexion au compte ADMIN (global)', `
-      <div class="field"><label>Identifiant global *</label><input id="al-user" required placeholder="Identifiant global"></div>
-      <div class="field"><label>Mot de passe *</label><input id="al-pwd" type="password" required placeholder="Mot de passe"></div>
+      <div class="field"><label>Identifiant global *</label><input id="al-user" required placeholder="Identifiant global" autocomplete="off" autocapitalize="none" autocorrect="off"></div>
+      <div class="field"><label>Mot de passe *</label><input id="al-pwd" type="password" required placeholder="Mot de passe" autocomplete="new-password"></div>
     `, async (body) => {
       const res = await Meta.loginTenant(body.querySelector('#al-user').value.trim(), body.querySelector('#al-pwd').value);
       if (!res.ok) {
@@ -172,8 +172,8 @@ const items = NS.navGroups[grp].filter((it) => {
   function openAccessForm() {
     UI.prompt('Connexion à votre école', `
       <div class="field"><label>Nom de l'école *</label><input id="of-school" required placeholder="Nom donné à l'école lors de sa création"></div>
-      <div class="field"><label>Identifiant *</label><input id="of-user" required placeholder="Identifiant"></div>
-      <div class="field"><label>Mot de passe *</label><input id="of-pwd" type="password" required placeholder="Mot de passe"></div>
+      <div class="field"><label>Identifiant *</label><input id="of-user" required placeholder="Identifiant" autocomplete="off" autocapitalize="none" autocorrect="off"></div>
+      <div class="field"><label>Mot de passe *</label><input id="of-pwd" type="password" required placeholder="Mot de passe" autocomplete="new-password"></div>
     `, async (body) => {
       const nom = body.querySelector('#of-school').value.trim();
       if (!nom) { UI.toast('Saisissez le nom de l\'école.', 'err'); return false; }
@@ -350,10 +350,10 @@ const items = NS.navGroups[grp].filter((it) => {
         <div class="field"><label>Prénom</label><input id="ac-prenom" value="${UI.esc(acc.prenom || '')}"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Identifiant *</label><input id="ac-username" value="${UI.esc(acc.username || '')}" required></div>
+        <div class="field"><label>Identifiant *</label><input id="ac-username" value="${UI.esc(acc.username || '')}" required autocomplete="off" autocapitalize="none" autocorrect="off"></div>
         <div class="field"><label>Rôle *</label><select id="ac-role">${roleSel}</select></div>
       </div>
-      <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (laisser vide pour conserver)'}</label><input id="ac-pwd" type="password"${isNew ? ' required' : ''}></div>
+      <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (laisser vide pour conserver)'}</label><input id="ac-pwd" type="password"${isNew ? ' required' : ''} autocomplete="new-password"></div>
       <div class="field"><label><input type="checkbox" id="ac-actif"${acc.actif !== false ? ' checked' : ''}> Compte actif</label></div>
     `, async (f) => {
       const nom = f.querySelector('#ac-nom').value.trim();
@@ -397,33 +397,28 @@ const items = NS.navGroups[grp].filter((it) => {
   const PERM_LABELS = {
     'users.manage': 'Gestion des utilisateurs',
     'parametres.permissions': 'Permissions',
-    'ecole.manage': 'École & années scolaires',
-    'cycles.manage': 'Cycles',
-    'salles.manage': 'Salles',
-    'niveaux.manage': 'Niveaux',
-    'classes.manage': 'Classes',
-    'eleves.manage': 'Élèves',
-    'enseignants.manage': 'Enseignants',
-    'matieres.manage': 'Matières',
-    'affectations.manage': 'Affectations',
-    'frais.manage': 'Frais scolaires',
-    'frais.pay': 'Encaisser les frais',
-    'salaires.manage': 'Salaires',
-    'emplois.manage': 'Gérer emplois du temps',
-    'emplois.view': 'Consulter emplois du temps',
-    'notes.entry': 'Saisie des notes',
-    'notes.view': 'Consulter les notes',
-    'bulletins.view': 'Consulter les bulletins',
-    'bulletins.print': 'Imprimer les bulletins',
+    'ecole.manage': 'École (établissement)', 'annees.manage': 'Années scolaires',
+    'cycles.manage': 'Cycles', 'salles.manage': 'Salles', 'niveaux.manage': 'Niveaux',
+    'classes.manage': 'Classes', 'eleves.manage': 'Élèves', 'cartes.manage': 'Cartes scolaires',
+    'enseignants.manage': 'Enseignants', 'matieres.manage': 'Matières', 'affectations.manage': 'Affectations',
+    'volumes.manage': 'Volumes horaires', 'pointage.manage': 'Pointage des cours', 'controle.heures': 'Contrôle des heures',
+    'frais.manage': 'Frais scolaires', 'frais.pay': 'Encaisser les frais', 'salaires.manage': 'Salaires', 'honoraires.manage': 'Honoraires des enseignants',
+    'emplois.manage': 'Gérer emplois du temps', 'emplois.view': 'Consulter emplois du temps',
+    'notes.entry': 'Saisie des notes', 'notes.view': 'Consulter les notes',
+    'bulletins.view': 'Consulter les bulletins', 'bulletins.print': 'Imprimer les bulletins',
     'dashboard.view': 'Tableau de bord',
     'passages.manage': 'Passages (promotion)',
-    'personnel.manage': 'Gestion du personnel',
-    'depenses.manage': 'Dépenses & charges'
+    'personnel.manage': 'Gestion du personnel', 'depenses.manage': 'Dépenses & charges',
+    'parametres.sauvegarde': 'Sauvegarde & restauration', 'parametres.synchro': 'Synchronisation',
+    'parametres.journal': 'Journal d\'audit (consultation)', 'statistiques.view': 'Statistiques'
   };
-  const PERM_ORDER = ['users.manage','parametres.permissions','ecole.manage','cycles.manage','salles.manage','niveaux.manage','classes.manage',
-    'eleves.manage','enseignants.manage','matieres.manage','affectations.manage',
-    'frais.manage','frais.pay','salaires.manage','emplois.manage','emplois.view',
-    'notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','personnel.manage','depenses.manage'];
+  const PERM_ORDER = ['users.manage','parametres.permissions','ecole.manage','annees.manage',
+    'cycles.manage','salles.manage','niveaux.manage','classes.manage',
+    'eleves.manage','cartes.manage','enseignants.manage','matieres.manage','affectations.manage',
+    'volumes.manage','pointage.manage','controle.heures',
+    'frais.manage','frais.pay','salaires.manage','honoraires.manage','emplois.manage','emplois.view',
+    'notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','personnel.manage','depenses.manage',
+    'parametres.sauvegarde','parametres.synchro','parametres.journal','statistiques.view'];
 
   async function openPermsManager() {
     if (!Meta.currentTenant()) { UI.toast('Connectez-vous d\'abord en COMPTE ADMIN.', 'err'); return; }
@@ -474,14 +469,20 @@ const items = NS.navGroups[grp].filter((it) => {
     document.getElementById('btn-admin-login').addEventListener('click', adminLoginForm);
     document.getElementById('btn-quit').addEventListener('click', quitApp);
     document.getElementById('btn-tenant-logout').addEventListener('click', () => { Meta.logoutTenant(); tenantUi(); renderSchools(); });
+    document.getElementById('btn-lic-generator').addEventListener('click', () => {
+      const t = Meta.currentTenant();
+      if (!t) { UI.toast('Connectez-vous d\'abord en COMPTE ADMIN (global).', 'err'); return; }
+      if (window.License && License.openGenerator) License.openGenerator();
+      else UI.toast('Le générateur de licence est disponible dans l\'application installée.', 'warn');
+    });
     document.getElementById('btn-tenant-edit').addEventListener('click', () => {
       const t = Meta.currentTenant();
       if (!t) { UI.toast('Connectez-vous en tant qu\'admin global.', 'err'); return; }
       UI.prompt('Modifier les identifiants du compte global', `
-        <div class="field"><label>Nouvel identifiant</label><input id="te-user" value="${UI.esc(t.username || '')}"></div>
-        <div class="field"><label>Mot de passe actuel *</label><input id="te-cur" type="password" required></div>
-        <div class="field"><label>Nouveau mot de passe</label><input id="te-new" type="password"></div>
-        <div class="field"><label>Confirmation</label><input id="te-new2" type="password"></div>
+        <div class="field"><label>Nouvel identifiant</label><input id="te-user" value="${UI.esc(t.username || '')}" autocomplete="off" autocapitalize="none" autocorrect="off"></div>
+        <div class="field"><label>Mot de passe actuel *</label><input id="te-cur" type="password" required autocomplete="new-password"></div>
+        <div class="field"><label>Nouveau mot de passe</label><input id="te-new" type="password" autocomplete="new-password"></div>
+        <div class="field"><label>Confirmation</label><input id="te-new2" type="password" autocomplete="new-password"></div>
       `, async (body) => {
         const cur = body.querySelector('#te-cur').value;
         const nw = body.querySelector('#te-new').value;
