@@ -20,11 +20,14 @@ window.Auth = (function () {
 
   // ---- Matrice des permissions par rôle ----
   const P_ALL = [
-    'users.manage','parametres.permissions','ecole.manage','cycles.manage','salles.manage','niveaux.manage','classes.manage',
-    'eleves.manage','enseignants.manage','matieres.manage','affectations.manage',
-    'frais.manage','frais.pay','salaires.manage','emplois.manage','emplois.view',
+    'users.manage','parametres.permissions','ecole.manage','annees.manage',
+    'cycles.manage','salles.manage','niveaux.manage','classes.manage',
+    'eleves.manage','cartes.manage','enseignants.manage','matieres.manage','affectations.manage',
+    'volumes.manage','pointage.manage','controle.heures',
+    'frais.manage','frais.pay','salaires.manage','honoraires.manage','emplois.manage','emplois.view',
     'notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view',
-    'passages.manage','personnel.manage','depenses.manage'
+    'passages.manage','personnel.manage','depenses.manage',
+    'parametres.sauvegarde','parametres.synchro','parametres.journal','statistiques.view'
   ];
 
   const PERMS = {
@@ -32,11 +35,11 @@ window.Auth = (function () {
     promoteur: P_ALL.slice(),
     directeur: P_ALL.slice(),
     proviseur: P_ALL.slice(),
-    censeur: ['classes.manage','eleves.manage','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage'],
-    surveillant: ['eleves.manage','emplois.view','notes.view','bulletins.view','dashboard.view'],
-    secretaire: ['classes.manage','eleves.manage','frais.pay','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','depenses.manage','personnel.manage'],
-    comptable: ['frais.manage','frais.pay','salaires.manage','notes.view','bulletins.view','dashboard.view','depenses.manage','personnel.manage'],
-    doyen: ['niveaux.manage','classes.manage','eleves.manage','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage'],
+    censeur: ['classes.manage','eleves.manage','cartes.manage','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','statistiques.view'],
+    surveillant: ['eleves.manage','cartes.manage','emplois.view','notes.view','bulletins.view','dashboard.view'],
+    secretaire: ['classes.manage','eleves.manage','cartes.manage','frais.pay','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','depenses.manage','personnel.manage','statistiques.view'],
+    comptable: ['frais.manage','frais.pay','salaires.manage','honoraires.manage','notes.view','bulletins.view','dashboard.view','depenses.manage','personnel.manage','statistiques.view'],
+    doyen: ['niveaux.manage','classes.manage','eleves.manage','cartes.manage','emplois.view','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','statistiques.view'],
     enseignant: ['emplois.view','notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view'],
     eleve: ['bulletins.view','dashboard.view']
   };
@@ -181,12 +184,29 @@ window.Auth = (function () {
     return u.role === 'super_admin' && String(u.username || '').toLowerCase() === 'admin';
   }
 
+  // Seuls ces rôles peuvent VIDER le journal ; les autres peuvent seulement le
+  // consulter (restriction indépendante de la matrice des accès).
+  const JOURNAL_CLEAR_ROLES = ['super_admin', 'promoteur', 'directeur', 'proviseur', 'doyen'];
+  function canClearJournal() {
+    const u = current || currentUser();
+    return !!(u && JOURNAL_CLEAR_ROLES.indexOf(u.role) >= 0);
+  }
+
+  // Rôles autorisés à manipuler les données de l'école courante :
+  // remplir la base avec un exemple ou la vider (comptes et fiche école conservés).
+  const WIPE_BASE_ROLES = ['super_admin', 'promoteur', 'proviseur'];
+  function canWipeBase() {
+    const u = current || currentUser();
+    return !!(u && WIPE_BASE_ROLES.indexOf(u.role) >= 0);
+  }
+
   return {
     ROLES: ROLES, PERMS: PERMS, hashPassword: hashPassword,
     login: login, logout: logout, currentUser: currentUser,
     roleLib: roleLib, roleShort: roleShort, roleClass: roleClass, roleIcone: roleIcone,
     can: can, editableRoles: editableRoles, permsOrDefault: permsOrDefault, permsFor: permsFor, setPermissions: setPermissions, isSuperAdmin: isSuperAdmin, isMaster: isMaster,
     myAssignments: myAssignments, myStudent: myStudent,
-    log: log, roleName: roleName, isPrincipalAdmin: isPrincipalAdmin
+    log: log, roleName: roleName, isPrincipalAdmin: isPrincipalAdmin, canClearJournal: canClearJournal,
+    canWipeBase: canWipeBase
   };
 })();
