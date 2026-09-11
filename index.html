@@ -14,10 +14,54 @@
 <link rel="icon" href="icons/icon-192.png" type="image/png">
 <link rel="apple-touch-icon" href="icons/icon-192.png">
 <link rel="stylesheet" href="css/styles.css">
+<script>
+  /* Environnement bureau (WebView2) : masque la page le temps du contrôle de licence (js/license.js). */
+  if (window.chrome && window.chrome.webview) {
+    document.documentElement.style.visibility = 'hidden';
+  }
+</script>
 </head>
 <body>
 <button id="install-btn" class="install-btn" hidden aria-hidden="true">⬇ Installer l'application</button>
 <div id="toast-root"></div>
+
+<!-- ============ ÉCRAN D'ACTIVATION / LICENCE (application bureau) ============ -->
+<div id="screen-license" class="login-wrap hidden">
+  <div class="login-card lic-card">
+    <div class="login-brand">
+      <div class="login-logo" id="lic-logo">GS</div>
+      <h1>Gestion Scolaire</h1>
+      <p id="lic-status-line">Activation requise</p>
+    </div>
+    <div id="lic-status" class="lic-status hidden"></div>
+    <div id="lic-install-code" class="lic-code hidden">
+      <div class="lic-code-label" id="lic-code-label">Code d'installation de CE POSTE — à transmettre à l'éditeur</div>
+      <div class="lic-code-value" style="display:flex;align-items:center;gap:10px">
+        <span id="lic-code-value" class="lic-code-value-num">——</span>
+        <button type="button" id="lic-copy-code" class="btn btn-sm btn-outline">Copier</button>
+      </div>
+      <p class="hint">En retour, l'éditeur vous remettra la clé d'activation (20 caractères) liée à ce code.</p>
+    </div>
+    <div class="lic-editor">
+      <div class="lic-editor-title">Pour obtenir une licence / un renouvellement, contactez l'éditeur :</div>
+      <div class="lic-editor-line"><b>Dr FANE Mahama</b></div>
+      <div class="lic-editor-line">Tél : <a href="tel:+22376301028">+223 76301028</a> / <a href="tel:+22363115278">+223 63115278</a></div>
+      <div class="lic-editor-line">Email : <a href="mailto:mahamaf1@outlook.fr">mahamaf1@outlook.fr</a></div>
+    </div>
+    <form id="license-form" autocomplete="off">
+      <div class="field">
+        <label for="lic-key">Clé de licence (reçue de l'éditeur)</label>
+        <input type="text" id="lic-key" placeholder="XXXXX-XXXXX-XXXXX-XXXXX" required spellcheck="false" autocomplete="off" autocapitalize="chars">
+      </div>
+      <p class="hint" id="lic-hint-msg" style="margin-bottom:12px">Saisissez la clé d'activation reçue de l'éditeur.</p>
+      <div id="lic-error" class="login-error hidden"></div>
+      <div class="row">
+        <button type="submit" class="btn btn-primary btn-block">Activer</button>
+        <button type="button" id="lic-quit" class="btn btn-outline btn-block">Quitter</button>
+      </div>
+    </form>
+  </div>
+</div>
 
 <!-- ============ ÉCRAN DE SÉLECTION (multi-écoles / compte global) ============ -->
 <div id="screen-meta" class="meta-wrap hidden">
@@ -36,6 +80,7 @@
       <div class="meta-admin-head">
         <span class="badge badge-danger">Admin global</span>
         <div class="meta-admin-actions">
+          <button id="btn-lic-generator" class="btn btn-sm btn-primary" title="Générer une clé d'activation pour une installation">Générateur de licence</button>
           <button id="btn-tenant-edit" class="btn btn-sm btn-outline">Modifier identifiants</button>
           <button id="btn-tenant-logout" class="btn btn-sm btn-ghost">Déconnexion</button>
         </div>
@@ -68,11 +113,11 @@
     <form id="login-form" autocomplete="off">
       <div class="field">
         <label for="login-username">Identifiant</label>
-        <input type="text" id="login-username" placeholder="Identifiant" required>
+        <input type="text" id="login-username" placeholder="Identifiant" required autocomplete="off" autocapitalize="none" autocorrect="off" spellcheck="false">
       </div>
       <div class="field">
         <label for="login-password">Mot de passe</label>
-        <input type="password" id="login-password" placeholder="Mot de passe" required>
+        <input type="password" id="login-password" placeholder="Mot de passe" required autocomplete="new-password">
       </div>
       <div id="login-error" class="login-error hidden"></div>
       <button type="submit" class="btn btn-primary btn-block">Se connecter</button>
@@ -101,7 +146,9 @@
       <button id="btn-sidebar-toggle" class="btn btn-ghost sidebar-toggle">☰</button>
       <h2 id="topbar-title">Tableau de bord</h2>
       <div class="topbar-right">
+        <button id="btn-lic-renew" class="btn btn-sm btn-ghost topbar-renew hidden" title="Renouveler la licence (nouveau code d'installation)">Licence</button>
         <span id="topbar-context" class="topbar-context"></span>
+        <span id="topbar-lan" class="topbar-context hidden"></span>
         <span class="topbar-annee badge badge-info" id="topbar-annee">–</span>
       </div>
     </header>
@@ -121,6 +168,7 @@
 <script src="js/storage.js"></script>
   <script src="js/firebase-config.js"></script>
   <script src="js/sync.js"></script>
+  <script src="js/lan.js"></script>
   <script src="js/bridge.js"></script>
 <script src="js/excel.js"></script>
 <script src="js/pdf.js"></script>
@@ -138,7 +186,10 @@
 <script src="js/modules/passages.js"></script>
 <script src="js/modules/sauvegarde.js"></script>
 <script src="js/modules/parametres.js"></script>
+<script src="js/modules/statistiques.js"></script>
 <script src="sample_data.js"></script>
+<script src="js/desktop.js"></script>
+<script src="js/license.js"></script>
 <script src="js/install.js"></script>
 <script src="js/init.js"></script>
 <script>
@@ -148,7 +199,7 @@
   // l'événement controllerchange relance la page UNE seule fois pour servir les
   // derniers fichiers. Équivalent automatisé du « Ctrl+F5 × 2 », sans action manuelle,
   // sur chaque poste et à chaque démarrage du site.
-  if ('serviceWorker' in navigator) {
+  if ('serviceWorker' in navigator && !(window.chrome && window.chrome.webview)) {
     var wasControlled = !!navigator.serviceWorker.controller;
     var autoReloaded = false;
     navigator.serviceWorker.addEventListener('controllerchange', function () {
