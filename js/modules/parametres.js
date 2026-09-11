@@ -1,4 +1,4 @@
-/* ============================================================
+﻿/* ============================================================
    parametres.js — Paramètres & Administration (adapté au modèle
    scolaire). Onglets :
      • Établissement : identité (nom, slogan, adresse, tél, email, logo)
@@ -6,6 +6,7 @@
      • Paiement      : options de base des paiements (devise, décimales, modes)
      • Permissions   : niveaux d'accès par rôle (système + personnalisés)
      • Sauvegarde    : diagnostic stockage, sauvegarde/restauration, exports CSV
+     • Synchro       : synchronisation temps réel (réseau local et en ligne/internet)
      • Journal       : journal d'audit
    ============================================================ */
 window.Parametres = (function () {
@@ -13,40 +14,86 @@ window.Parametres = (function () {
 
   function setPageTitle(t) { document.getElementById('topbar-title').textContent = t; }
 
-  function show(root) {
-    setPageTitle('Paramètres & Administration');
-    root.innerHTML =
-      '<div class="tabbar">' +
-        '<button class="tab" data-tab="etablissement">Établissement</button>' +
-        '<button class="tab" data-tab="utilisateurs">Utilisateurs</button>' +
-        '<button class="tab" data-tab="paiement">Paiement</button>' +
-        (Auth.can('parametres.permissions') ? '<button class="tab" data-tab="permissions">Permissions</button>' : '') +
-        '<button class="tab" data-tab="sauvegarde">Sauvegarde</button>' +
-        '<button class="tab" data-tab="journal">Journal</button>' +
-      '</div>' +
-      '<div class="tabbar-content" style="margin-top:14px"></div>';
-    root.querySelectorAll('.tab').forEach((b) => { b.onclick = () => { tab = b.dataset.tab; show(root); }; });
-    if (!Auth.can('parametres.permissions') && tab === 'permissions') tab = 'etablissement';
-    wrap(root);
+  // Onglets sensibles : accès restreint aux seuls rôles autorisés.
+  // Utilisateurs, Permissions, Sauvegarde, Synchro et Journal ne sont visibles
+  // que pour : Super Administrateur, Promoteur, Directeur, Doyen, Proviseur.
+  const ADMIN_ROLES = ['super_admin', 'promoteur', 'directeur', 'doyen', 'proviseur'];
+  function isAdminRole() {
+    const u = Auth.currentUser();
+    return !!(u && ADMIN_ROLES.indexOf(u.role) >= 0);
   }
 
-  function content(root) { return root.querySelector('.tabbar-content'); }
+  // Confirmation des identifiants de l'utilisateur connecté avant une action sensible.
+  function confirmCredentials() {
+    return new Promise((resolve) => {
+      const u = Auth.currentUser() || {};
+      const m = UI.prompt('Confirmation de vos identifiants', `
+        <div class="field"><label>Identifiant</label><input value="${UI.esc(u.username || '')}" readonly></div>
+        <div class="field"><label>Mot de passe *</label><input id="cf-pwd" type="password" required autocomplete="current-password"></div>
+      `, async (body) => {
+        const pwd = body.querySelector('#cf-pwd').value;
+        if (!pwd) { UI.toast('Saisissez votre mot de passe.', 'err'); return false; }
+        const res = await Auth.login(u.username || '', pwd);
+        if (!res.ok) {
+          let errEl = body.querySelector('.of-error');
+          if (!errEl) { errEl = document.createElement('div'); errEl.className = 'login-error of-error'; body.appendChild(errEl); }
+          errEl.textContent = 'Identifiants incorrects.';
+          return false;
+        }
+        UI.closeModal();
+        resolve(true);
+        return true;
+      }, { title: 'Confirmation', size: 'modal modal-sm', okLabel: 'Confirmer' });
+      const orig = m.close.bind(m);
+      m.close = function () { resolve(false); return orig(); };
+    });
+  }
 
-  async function wrap(root) {
-    const c = content(root);
-    c.classList.toggle('active', true);
-    root.querySelectorAll('.tab').forEach((b) => b.classList.toggle('active', b.dataset.tab === tab));
-    c.innerHTML = '<div class="empty">Chargement…</div>';
-    if (tab === 'etablissement') await renderEtablissement(c);
-    else if (tab === 'utilisateurs') await renderUtilisateurs(c, root);
-    else if (tab === 'paiement') await renderPaiement(c);
-    else if (tab === 'permissions') {
-      if (Auth.can('parametres.permissions')) await renderPermissions(c, root);
-      else { tab = 'etablissement'; c.innerHTML = '<div class="empty">Accès refusé pour votre rôle.</div>'; }
-    }
-    else if (tab === 'sauvegarde') await renderSauvegarde(c);
-    else await renderJournal(c);
-    return c;
+  const TABS = [
+    { key: 'etablissement', label: 'Établissement', on: () => true },
+    { key: 'utilisateurs', label: 'Utilisateurs', on: isAdminRole },
+    { key: 'paiement', label: 'Paiement', on: () => true },
+    { key: 'permissions', label: 'Permissions', on: isAdminRole },
+    { key: 'sauvegarde', label: 'Sauvegarde', on: isAdminRole },
+    { key: 'synchronisation', label: 'Synchro', on: isAdminRole },
+    { key: 'journal', label: 'Journal', on: isAdminRole }
+  ];
+
+  function show(root) {
+    setPageTitle('Paramètres & Administration');
+    const tabs = TABS.filter((t) => t.on());
+    if (!tabs.some((t) => t.key === tab)) tab = tabs.length ? tabs[0].key : 'etablissement';
+    root.innerHTML =
+      '<div class="tabbar">' + tabs.map((t) =>
+        '<button class="tab' + (t.key === tab ? ' active' : '') + '" data-tab="' + t.key + '">' + t.label + '</button>').join('') + '</div>' +
+      tabs.map((t) => '<div id="pt-frag-' + t.key + '" class="' + (t.key === tab ? '' : 'hidden') + '" style="margin-top:14px"></div>').join('');
+    root.querySelectorAll('.tabbar .tab').forEach((b) => b.onclick = () => {
+      tab = b.dataset.tab;
+      root.querySelectorAll('.tabbar .tab').forEach((x) => x.classList.remove('active'));
+      b.classList.add('active');
+      tabs.forEach((t) => {
+        const f = root.querySelector('#pt-frag-' + t.key);
+        if (f) f.classList.toggle('hidden', t.key !== tab);
+      });
+    });
+    const renderers = {
+      etablissement: renderEtablissement,
+      utilisateurs: renderUtilisateurs,
+      paiement: renderPaiement,
+      permissions: renderPermissions,
+      sauvegarde: renderSauvegarde,
+      synchronisation: renderSynchronisation,
+      journal: renderJournal
+    };
+    tabs.forEach((t) => {
+      const f = root.querySelector('#pt-frag-' + t.key);
+      const fn = renderers[t.key];
+      if (!f || !fn) return;
+      f.innerHTML = '<div class="empty">Chargement…</div>';
+      Promise.resolve(fn(f, root)).catch((err) => {
+        if (f && f.isConnected) f.innerHTML = '<div class="empty">Erreur de chargement : ' + UI.esc(String((err && err.message) || err)) + '</div>';
+      });
+    });
   }
 
   // ================= ÉTABLISSEMENT =================
@@ -146,7 +193,7 @@ window.Parametres = (function () {
       '</div>' +
       '<div id="pu-tbl"></div>' +
       (canManage ? '' : '<div class="empty">Votre rôle ne permet pas de gérer les utilisateurs.</div>');
-    if (canManage) c.querySelector('#pu-add').onclick = () => userForm(root, null);
+    if (canManage) c.querySelector('#pu-add').onclick = async () => { if (await confirmCredentials()) userForm(root, null); };
     const roleMap = await roleLabels();
     const rows = users.map((u, i) => {
       if (hideRow(u)) return null;
@@ -160,7 +207,7 @@ window.Parametres = (function () {
           '<button class="btn btn-sm btn-danger" data-del="' + i + '">Suppr.</button></td>' : '') +
       '</tr>';
     }).join('');
-    c.querySelector('#pu-tbl').innerHTML = UI.table(['Nom', 'Identifiant', 'Rôle', 'Statut', 'Actions'].slice(0, canManage ? 5 : 4), rows || UI.empty(4));
+    c.querySelector('#pu-tbl').innerHTML = UI.table(['Nom', 'Identifiant', 'Rôle', 'Statut', 'Actions'].slice(0, canManage ? 5 : 4), rows || UI.empty(canManage ? 5 : 4));
     c.querySelectorAll('[data-edit]').forEach((b) => b.onclick = () => userForm(root, users[Number(b.dataset.edit)]));
     c.querySelectorAll('[data-del]').forEach((b) => b.onclick = () => deleteUser(root, users[Number(b.dataset.del)]));
   }
@@ -195,10 +242,10 @@ window.Parametres = (function () {
         <div class="field"><label>Prénom</label><input id="uf-prenom" value="${UI.esc(acc.prenom || '')}"></div>
       </div>
       <div class="row">
-        <div class="field"><label>Identifiant *</label><input id="uf-username" value="${UI.esc(acc.username || '')}" required></div>
+        <div class="field"><label>Identifiant *</label><input id="uf-username" value="${UI.esc(acc.username || '')}" required autocomplete="off" autocapitalize="none" autocorrect="off"></div>
         <div class="field"><label>Rôle *</label><select id="uf-role">${await roleOptions(acc.role || '')}</select></div>
       </div>
-      <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (vide = inchangé)'}</label><input id="uf-pwd" type="password"${isNew ? ' required' : ''}></div>
+      <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (vide = inchangé)'}</label><input id="uf-pwd" type="password"${isNew ? ' required' : ''} autocomplete="new-password"></div>
       <div class="field"><label><input type="checkbox" id="uf-actif"${acc.actif !== false ? ' checked' : ''}> Compte actif</label></div>
     `, async (body) => {
       const nom = body.querySelector('#uf-nom').value.trim();
@@ -236,7 +283,7 @@ window.Parametres = (function () {
       }
       UI.closeModal();
       UI.toast(isNew ? 'Utilisateur créé.' : 'Utilisateur modifié.', 'ok');
-      wrap(root);
+      show(root);
       return true;
     }, { size: 'modal' });
   }
@@ -248,7 +295,7 @@ window.Parametres = (function () {
       await DB.del('users', acc.id);
       await Auth.log('Suppression', 'parametres', 'Utilisateur ' + acc.username);
       UI.toast('Compte utilisateur supprimé.', 'ok');
-      wrap(root);
+      show(root);
     }, { title: 'Supprimer un utilisateur' });
   }
 
@@ -313,23 +360,33 @@ window.Parametres = (function () {
   // ================= PERMISSIONS =================
   const PERM_LABELS = {
     'users.manage': 'Gestion des utilisateurs', 'parametres.permissions': 'Permissions',
-    'ecole.manage': 'École & années scolaires',
+    'ecole.manage': 'École (établissement)', 'annees.manage': 'Années scolaires',
     'cycles.manage': 'Cycles', 'salles.manage': 'Salles', 'niveaux.manage': 'Niveaux',
-    'classes.manage': 'Classes', 'eleves.manage': 'Élèves', 'enseignants.manage': 'Enseignants',
-    'matieres.manage': 'Matières', 'affectations.manage': 'Affectations',
-    'frais.manage': 'Frais scolaires', 'frais.pay': 'Encaisser les frais', 'salaires.manage': 'Salaires',
+    'classes.manage': 'Classes', 'eleves.manage': 'Élèves', 'cartes.manage': 'Cartes scolaires',
+    'enseignants.manage': 'Enseignants', 'matieres.manage': 'Matières', 'affectations.manage': 'Affectations',
+    'volumes.manage': 'Volumes horaires', 'pointage.manage': 'Pointage des cours', 'controle.heures': 'Contrôle des heures',
+    'frais.manage': 'Frais scolaires', 'frais.pay': 'Encaisser les frais', 'salaires.manage': 'Salaires', 'honoraires.manage': 'Honoraires des enseignants',
     'emplois.manage': 'Gérer emplois du temps', 'emplois.view': 'Consulter emplois du temps',
     'notes.entry': 'Saisie des notes', 'notes.view': 'Consulter les notes',
     'bulletins.view': 'Consulter les bulletins', 'bulletins.print': 'Imprimer les bulletins',
     'dashboard.view': 'Tableau de bord', 'passages.manage': 'Passages (promotion)',
-    'personnel.manage': 'Gestion du personnel', 'depenses.manage': 'Dépenses & charges'
+    'personnel.manage': 'Gestion du personnel', 'depenses.manage': 'Dépenses & charges',
+    'parametres.sauvegarde': 'Sauvegarde & restauration', 'parametres.synchro': 'Synchronisation',
+    'parametres.journal': 'Journal d\'audit (consultation)', 'statistiques.view': 'Statistiques'
   };
-  const ORDER = ['users.manage','parametres.permissions','ecole.manage','cycles.manage','salles.manage','niveaux.manage','classes.manage',
-    'eleves.manage','enseignants.manage','matieres.manage','affectations.manage',
-    'frais.manage','frais.pay','salaires.manage','emplois.manage','emplois.view',
-    'notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','personnel.manage','depenses.manage'];
+  const ORDER = ['users.manage','parametres.permissions','ecole.manage','annees.manage',
+    'cycles.manage','salles.manage','niveaux.manage','classes.manage',
+    'eleves.manage','cartes.manage','enseignants.manage','matieres.manage','affectations.manage',
+    'volumes.manage','pointage.manage','controle.heures',
+    'frais.manage','frais.pay','salaires.manage','honoraires.manage','emplois.manage','emplois.view',
+    'notes.entry','notes.view','bulletins.view','bulletins.print','dashboard.view','passages.manage','personnel.manage','depenses.manage',
+    'parametres.sauvegarde','parametres.synchro','parametres.journal','statistiques.view'];
 
   async function renderPermissions(c, root) {
+    if (!isAdminRole()) {
+      c.innerHTML = '<div class="empty">Accès réservé aux rôles autorisés (Super Administrateur, Promoteur, Directeur, Doyen, Proviseur).</div>';
+      return;
+    }
     const matrix = await Meta.getPermissions();
     const roles = [];
     Object.keys(Auth.ROLES).sort((a, b) => Auth.ROLES[a].ordre - Auth.ROLES[b].ordre).forEach((r) => roles.push(r));
@@ -369,15 +426,17 @@ window.Parametres = (function () {
       UI.toast('Niveaux d\'accès enregistrés.', 'ok');
     };
     c.querySelector('#pp-reset').onclick = async () => {
+      if (!(await confirmCredentials())) return;
       const ok = await UI.confirm('Rétablir les accès par défaut pour tous les rôles ?', async () => {
         const defs = Auth.permsOrDefault();
         await Meta.savePermissions(defs);
         Auth.setPermissions(defs);
         UI.closeModal(); UI.toast('Accès par défaut rétablis.', 'ok');
-        wrap(root);
+        show(root);
       }, { title: 'Rétablir les défauts' });
     };
     c.querySelector('#pp-add-role').onclick = async () => {
+      if (!(await confirmCredentials())) return;
       UI.prompt('Ajouter un rôle personnalisé', '<div class="field"><label>Nom du rôle *</label><input id="nr-nom" required placeholder="Ex : Bursar, Délégué, …"></div>', async (body) => {
         const nom = body.querySelector('#nr-nom').value.trim();
         if (!nom) { UI.toast('Nom requis.', 'err'); return false; }
@@ -385,7 +444,7 @@ window.Parametres = (function () {
         if (!res.ok) { UI.toast(res.msg, 'err'); return false; }
         await Auth.log('Création', 'parametres', 'Rôle ' + res.key + ' (' + nom + ')');
         UI.closeModal(); UI.toast('Rôle « ' + nom + ' » créé.', 'ok');
-        wrap(root);
+        show(root);
         return true;
       }, { size: 'modal modal-sm' });
     };
@@ -415,7 +474,7 @@ window.Parametres = (function () {
         if (!nom) { UI.toast('Nom requis.', 'err'); return false; }
         await Meta.renameCustomRole(b.dataset.rn, nom);
         UI.closeModal(); UI.toast('Rôle renommé.', 'ok');
-        wrap(root);
+        show(root);
         return true;
       }, { size: 'modal modal-sm' });
     });
@@ -424,8 +483,161 @@ window.Parametres = (function () {
       if (!res.ok) { UI.toast(res.msg, 'err'); return; }
       await Auth.log('Suppression', 'parametres', 'Rôle ' + b.dataset.rd);
       UI.toast('Rôle supprimé.', 'ok');
-      wrap(root);
+      show(root);
     });
+  }
+
+  // ================= SYNCHRONISATION =================
+  // Configuration de la synchronisation temps réel :
+  //   • réseau local : ce poste héberge (serveur, sans poste dédié) ou rejoint
+  //     un poste serveur (client) — transport TCP, secret partagé.
+  //   • en ligne (internet) : synchronisation directe sans serveur sur place
+  //     (Firebase Realtime Database), réglée par js/sync.js.
+  async function renderSynchronisation(c) {
+    const isDesktop = !!(window.Desktop && Desktop.isDesktop());
+    const lan = { enabled: false, mode: 'off', host: '', port: 34210, secret: '' };
+    let info = null;
+    if (isDesktop) {
+      try {
+        const cfg = await Desktop.getConfig();
+        const l = (cfg && cfg.lan) || {};
+        lan.enabled = !!l.enabled;
+        lan.mode = (l.mode === 'server' || l.mode === 'client') ? l.mode : 'off';
+        lan.host = l.host || '';
+        lan.port = l.port || 34210;
+        lan.secret = l.secret || '';
+      } catch (e) { /* ignore */ }
+      try { info = await Desktop.lanInfo(); } catch (e) { info = null; }
+    }
+    const web = (window.Sync && Sync.getConfig) ? Sync.getConfig() : { enabled: false, databaseURL: '', syncFolder: '', overridden: false };
+    const mode = (lan.enabled && lan.mode !== 'off') ? lan.mode : 'off';
+
+    c.innerHTML =
+      '<div class="card" style="padding:16px;margin-bottom:14px">' +
+        '<div class="card-title" style="margin-bottom:6px">Réseau local</div>' +
+        '<p class="hint" style="margin-bottom:12px">Synchronise les données en temps réel entre les postes du réseau. ' +
+          'Un poste en mode « serveur » héberge la dernière image des données (un simple poste du réseau, sans matériel dédié) ; ' +
+          'les autres postes s\'y connectent (mode « client »). Tous les postes partagent le même secret.</p>' +
+        (isDesktop ? '' : '<p class="hint" style="margin-bottom:12px">Disponible dans l\'application installée sur ce poste (coquille de bureau).</p>') +
+        '<div class="row">' +
+          '<div class="field"><label><input type="checkbox" id="sy-lan-enabled"> Activer la synchronisation réseau local</label></div>' +
+        '</div>' +
+        '<div class="row">' +
+          '<div class="field" style="flex:1"><label>Mode</label><select id="sy-lan-mode">' +
+            '<option value="server">Héberger sur ce poste (serveur)</option>' +
+            '<option value="client">Se connecter à un poste serveur (client)</option>' +
+          '</select></div>' +
+          '<div class="field" style="width:150px"><label>Port</label><input id="sy-lan-port" type="number" min="1" max="65535" value="' + lan.port + '"></div>' +
+        '</div>' +
+        '<div class="row" id="sy-lan-host-row">' +
+          '<div class="field"><label>Hôte du poste serveur (mode client)</label>' +
+            '<input id="sy-lan-host" value="' + UI.esc(lan.host) + '" placeholder="Ex : 192.168.1.10"></div>' +
+        '</div>' +
+        '<div class="row">' +
+          '<div class="field"><label>Secret de synchronisation (6 caractères minimum)</label>' +
+            '<input id="sy-lan-secret" type="password" value="' + UI.esc(lan.secret) + '" autocomplete="new-password"></div>' +
+        '</div>' +
+        '<div class="row" style="gap:10px">' +
+          '<button class="btn btn-primary" id="sy-lan-save"' + (isDesktop ? '' : ' disabled') + '>Enregistrer</button>' +
+          '<span class="hint" id="sy-lan-status"></span>' +
+        '</div>' +
+      '</div>' +
+      '<div class="card" style="padding:16px">' +
+        '<div class="card-title" style="margin-bottom:6px">En ligne (internet)</div>' +
+        '<p class="hint" style="margin-bottom:12px">Synchronisation directe via internet, sans serveur sur place : ' +
+          'les données sont échangées à travers un dossier partagé du nuage (Firebase Realtime Database). ' +
+          'Utilisez cette option pour relier des postes situés dans des lieux différents.</p>' +
+        '<div class="row">' +
+          '<div class="field"><label><input type="checkbox" id="sy-web-enabled"> Activer la synchronisation en ligne</label></div>' +
+        '</div>' +
+        '<div class="row">' +
+          '<div class="field"><label>URL de la base de données</label><input id="sy-web-url" value="' + UI.esc(web.databaseURL) + '" placeholder="https://…-default-rtdb.firebaseio.com"></div>' +
+          '<div class="field"><label>Dossier de synchronisation</label><input id="sy-web-folder" value="' + UI.esc(web.syncFolder) + '" placeholder="Ex : gs2_…"></div>' +
+        '</div>' +
+        '<div class="row" style="gap:10px">' +
+          '<button class="btn btn-primary" id="sy-web-save">Enregistrer</button>' +
+          '<span class="hint" id="sy-web-status"></span>' +
+        '</div>' +
+      '</div>';
+
+    // ---- Réseau local ----
+    const enabledEl = c.querySelector('#sy-lan-enabled');
+    const modeEl = c.querySelector('#sy-lan-mode');
+    const hostEl = c.querySelector('#sy-lan-host');
+    const portEl = c.querySelector('#sy-lan-port');
+    const secretEl = c.querySelector('#sy-lan-secret');
+    const hostRow = c.querySelector('#sy-lan-host-row');
+    const statusEl = c.querySelector('#sy-lan-status');
+
+    enabledEl.checked = lan.enabled;
+    modeEl.value = (mode === 'off' ? 'server' : mode);
+    [modeEl, hostEl, portEl, secretEl].forEach((el) => { el.disabled = !isDesktop || !lan.enabled; });
+    const syncModeUi = () => {
+      const on = enabledEl.checked;
+      [modeEl, portEl, secretEl].forEach((el) => { el.disabled = !isDesktop || !on; });
+      hostEl.disabled = !isDesktop || !on || modeEl.value !== 'client';
+      hostRow.style.display = (on && modeEl.value === 'client') ? '' : 'none';
+    };
+    syncModeUi();
+    enabledEl.onchange = syncModeUi;
+    modeEl.onchange = syncModeUi;
+
+    const renderLanStatus = () => {
+      if (!lan.enabled) { statusEl.innerHTML = '<span class="hint">Réseau local désactivé.</span>'; return; }
+      if (!info) { statusEl.innerHTML = '<span class="hint">État du réseau indisponible.</span>'; return; }
+      const i = info;
+      if (i.error) { statusEl.innerHTML = '<span style="color:#b91c1c">' + UI.esc(i.error) + '</span>'; return; }
+      if (i.mode === 'server') statusEl.innerHTML = '<span style="color:' + (i.running ? '#15803d' : '#b45309') + '">' +
+        (i.running ? 'Serveur actif' : 'Serveur arrêté') + ' • port ' + UI.esc(i.port) + ' • dernière image : v' + (i.cacheV || 0) + '</span>';
+      else if (i.mode === 'client') statusEl.innerHTML = '<span style="color:#15803d">Client — poste serveur : ' + UI.esc(i.host || '—') + ':' + UI.esc(i.port) + '</span>';
+      else statusEl.innerHTML = '<span class="hint">Réseau local désactivé.</span>';
+    };
+    renderLanStatus();
+
+    c.querySelector('#sy-lan-save').onclick = async () => {
+      if (!isDesktop) { UI.toast('Disponible dans l\'application installée sur ce poste.', 'err'); return; }
+      const on = enabledEl.checked;
+      const payload = {
+        enabled: on,
+        mode: on ? (modeEl.value === 'client' ? 'client' : 'server') : 'off',
+        host: hostEl.value.trim(),
+        port: Number(portEl.value || 34210),
+        secret: secretEl.value
+      };
+      if (on) {
+        if (payload.mode === 'client' && !payload.host) { UI.toast('Hôte du poste serveur requis (mode client).', 'err'); return; }
+        if (String(payload.secret).length < 6) { UI.toast('Le secret doit contenir au moins 6 caractères.', 'err'); return; }
+      }
+      try {
+        const res = await Desktop.saveLanConfig(JSON.stringify(payload));
+        if (!res || !res.ok) { UI.toast((res && res.error) || 'Enregistrement impossible.', 'err'); return; }
+        if (window.LanSync && LanSync.reconfigure) { try { LanSync.reconfigure(); } catch (e) { /* ignore */ } }
+        UI.toast('Configuration réseau local enregistrée.', 'ok');
+        renderSynchronisation(c);
+      } catch (e) { UI.toast('Enregistrement impossible : ' + e.message, 'err'); }
+    };
+
+    // ---- En ligne (internet) ----
+    const webStatus = c.querySelector('#sy-web-status');
+    const webEnabled = c.querySelector('#sy-web-enabled');
+    webEnabled.checked = !!web.enabled;
+    const renderWebStatus = () => {
+      const w = (window.Sync && Sync.getConfig) ? Sync.getConfig() : web;
+      webStatus.innerHTML = w.enabled
+        ? '<span style="color:#15803d">Activée — base : ' + UI.esc(w.databaseURL || '—') + ' / ' + UI.esc(w.syncFolder || '—') + '</span>'
+        : '<span class="hint">Synchronisation en ligne désactivée.</span>';
+    };
+    renderWebStatus();
+    c.querySelector('#sy-web-save').onclick = () => {
+      const url = c.querySelector('#sy-web-url').value.trim();
+      const folder = c.querySelector('#sy-web-folder').value.trim();
+      if (!url || !folder) { UI.toast('Renseignez l\'URL de la base et le dossier de synchronisation.', 'err'); return; }
+      let next;
+      try { next = (window.Sync && Sync.setConfig) ? Sync.setConfig({ enabled: webEnabled.checked, databaseURL: url, syncFolder: folder }) : null; }
+      catch (e) { UI.toast('Enregistrement impossible : ' + e.message, 'err'); return; }
+      renderWebStatus();
+      UI.toast(next && next.enabled ? 'Synchronisation en ligne activée.' : 'Synchronisation en ligne désactivée.', 'ok');
+    };
   }
 
   // ================= SAUVEGARDE =================
@@ -456,7 +668,16 @@ window.Parametres = (function () {
       '<div class="card" style="padding:16px;margin-top:14px">' +
         '<div class="card-title" style="margin-bottom:8px" id="ab-title">Sauvegarde automatique</div>' +
         '<div id="ab-box"></div>' +
-      '</div>';
+      '</div>' +
+      (Auth.canWipeBase() ?
+      '<div class="card" style="padding:16px;margin-top:14px">' +
+        '<div class="card-title" style="margin-bottom:8px">Jeux de données et nettoyage</div>' +
+        '<p class="hint" style="margin-bottom:12px">Remplissez la base avec un exemple d\'école couvrant tous les cycles (maternelle, primaire, collège, lycée, supérieur) pour tester toutes les fonctionnalités de l\'application, ou videz entièrement les données. Les comptes utilisateurs et la fiche de l\'établissement sont conservés.</p>' +
+        '<div style="display:flex;gap:8px;flex-wrap:wrap">' +
+          '<button class="btn btn-outline" id="ps-sample">Remplir avec un exemple (tous les cycles)</button>' +
+          '<button class="btn btn-danger" id="ps-wipe">Vider la base</button>' +
+        '</div>' +
+      '</div>' : '');
     const storage = c.querySelector('#ps-storage');
     async function refreshStorage() {
       try {
@@ -524,6 +745,66 @@ window.Parametres = (function () {
       try { await exportDefs[Number(b.dataset.ex)].fn(); } catch (e) { UI.toast('Erreur d\'export : ' + e.message, 'err'); }
     });
     renderAutoBackup(c);
+    // ---------- Zone données : exemple / vidage (super_admin direct, promoteur & proviseur avec confirmation d'identité) ----------
+    if (Auth.canWipeBase()) {
+      async function guardEcole(action) {
+        const u = Auth.currentUser();
+        if (!u) return false;
+        if (u.role === 'super_admin') return true;
+        return new Promise((resolve) => {
+          UI.prompt('Confirmation d\'identité', `
+            <p class="hint">Action sensible : ${UI.esc(action)}. Saisissez vos identifiants (${UI.esc(Auth.roleName(u.role))}).</p>
+            <div class="field"><label>Identifiant *</label><input id="wg-user" autocomplete="username"></div>
+            <div class="field"><label>Mot de passe *</label><input id="wg-pass" type="password" autocomplete="current-password"></div>
+          `, async (body) => {
+            const un = (body.querySelector('#wg-user').value || '').trim();
+            const pw = body.querySelector('#wg-pass').value || '';
+            if (!un || !pw) { UI.toast('Identifiant et mot de passe requis.', 'err'); return false; }
+            const users = (await DB.getAll('users')) || [];
+            const match = users.find(x => x.id === u.id && x.actif !== false && (x.username || '').toLowerCase() === un.toLowerCase());
+            if (!match) { UI.toast('Identifiant incorrect.', 'err'); return false; }
+            if (Auth.hashPassword(pw, match.salt) !== match.passwordHash) { UI.toast('Mot de passe incorrect.', 'err'); return false; }
+            UI.closeModal();
+            resolve(true);
+            return true;
+          }, { size: 'modal modal-sm' });
+        });
+      }
+      async function clearBase() {
+        for (const s of DB.STORES) {
+          if (s !== 'ecole' && s !== 'users') await DB.clear(s);
+        }
+      }
+      const wSample = c.querySelector('#ps-sample');
+      const wWipe = c.querySelector('#ps-wipe');
+      if (wSample) wSample.onclick = async () => {
+        if (!await guardEcole('remplir la base avec l\'exemple')) return;
+        UI.confirm('Remplacer les données actuelles par un exemple d\'école couvrant tous les cycles (maternelle, primaire, collège, lycée, supérieur) ?\n\nLes comptes utilisateurs et la fiche de l\'établissement sont conservés.', async () => {
+          try {
+            const eco = await DB.get('ecole', 1);
+            const ident = eco ? { nom: eco.nom, slogan: eco.slogan, directeur: eco.directeur } : null;
+            await clearBase();
+            await SampleData.populate();
+            const e = await DB.get('ecole', 1) || { id: 1 };
+            if (ident) await DB.put('ecole', Object.assign({}, e, ident));
+            await Auth.log('Exemple chargé', 'parametres', 'Base remplie avec un exemple (tous les cycles).');
+            UI.toast('Exemple chargé : tous les cycles sont maintenant testables.', 'ok');
+            App.go('dashboard');
+          } catch (e2) { UI.toast('Erreur : ' + e2.message, 'err'); }
+        }, { title: 'Charger l\'exemple' });
+      };
+      if (wWipe) wWipe.onclick = async () => {
+        if (!await guardEcole('vider la base')) return;
+        UI.confirm('Vider TOUTES les données de l\'établissement courant ?\n\nÉlèves, notes, finances, journal… seront définitivement supprimés. Les comptes utilisateurs et la fiche de l\'école sont conservés.', async () => {
+          try {
+            await clearBase();
+            await Auth.log('Base vidée', 'parametres', 'Toutes les données de l\'établissement ont été effacées.');
+            UI.toast('Base vidée.', 'ok');
+            App.go('dashboard');
+          } catch (e2) { UI.toast('Erreur : ' + e2.message, 'err'); }
+        }, { title: 'Confirmer le vidage de la base' });
+      };
+    }
   }
 
   // ================= SAUVEGARDE AUTOMATIQUE =================
@@ -717,7 +998,7 @@ window.Parametres = (function () {
     c.innerHTML =
       '<div class="bar" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center">' +
         '<span class="hint">' + journal.length + ' entrée(s) — les 200 plus récentes affichées</span>' +
-        (Auth.can('users.manage') ? '<button class="btn btn-sm btn-danger" id="pj-clear">Vider le journal</button>' : '') +
+        (Auth.canClearJournal() ? '<button class="btn btn-sm btn-danger" id="pj-clear">Vider le journal</button>' : '') +
       '</div>' +
       '<div class="pm-scroll">' + UI.table(['Date', 'Utilisateur', 'Module', 'Action', 'Détails'], rows || UI.empty(5)) + '</div>';
     const b = c.querySelector('#pj-clear');
@@ -737,7 +1018,6 @@ App.register('parametres', {
   navLabel: 'Paramètres',
   icon: 'P',
   group: 'Système',
-  perm: 'users.manage',
   title: 'Paramètres & Administration',
   render: function (root) { Parametres.show(root); }
 });
