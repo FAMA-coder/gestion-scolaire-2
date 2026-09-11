@@ -110,10 +110,10 @@ App.register('users', {
           <div class="field"><label>Prénom</label><input id="u-prenom" value="${UI.esc(u.prenom || '')}"></div>
         </div>
         <div class="row">
-          <div class="field"><label>Identifiant *</label><input id="u-username" value="${UI.esc(u.username || '')}" required${isNew ? '' : ''}></div>
+          <div class="field"><label>Identifiant *</label><input id="u-username" value="${UI.esc(u.username || '')}" required${isNew ? '' : ''} autocomplete="off" autocapitalize="none" autocorrect="off"></div>
           <div class="field"><label>Rôle *</label><select id="u-role">${roleOpts}</select></div>
         </div>
-        <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (laisser vide pour conserver)'}</label><input id="u-pwd" type="password"${isNew ? ' required' : ''}></div>
+        <div class="field"><label>${isNew ? 'Mot de passe *' : 'Nouveau mot de passe (laisser vide pour conserver)'}</label><input id="u-pwd" type="password"${isNew ? ' required' : ''} autocomplete="new-password"></div>
         ${isNew ? '<small class="hint">Par défaut, un compte « élève/enseignant » peut être relié plus tard à une fiche.</small>' : ''}
       `, async (body) => {
         const nom = body.querySelector('#u-nom').value.trim();
@@ -268,11 +268,11 @@ App.register('ecole', {
 
 /* ---------------- ANNÉES SCOLAIRES & TRIMESTRES ---------------- */
 App.register('annees', {
-  title: 'Années scolaires & Trimestres',
-  navLabel: 'Années / Trimestres',
+  title: 'Années scolaires',
+  navLabel: 'Années scolaires',
   icon: 'A',
   group: 'Système',
-  perm: 'ecole.manage',
+  perm: 'annees.manage',
   render: async function (root) {
     let eco = await DB.get('ecole', 1) || { id: 1 };
     root.innerHTML = '<div class="bar"><div class="bar-head"><div class="card-title">Années scolaires</div>' +
