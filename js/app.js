@@ -149,6 +149,12 @@ const items = NS.navGroups[grp].filter((it) => {
   function tenantUi() {
     const admin = document.getElementById('meta-admin');
     if (admin) admin.classList.toggle('hidden', !Meta.currentTenant());
+    fillAdminForm();
+  }
+  function fillAdminForm() {
+    const t = Meta.currentTenant();
+    const un = document.getElementById('af-username');
+    if (un && t) un.value = t.username || '';
   }
   function adminLoginForm() {
     UI.prompt('Connexion au compte ADMIN (global)', `
@@ -475,32 +481,36 @@ const items = NS.navGroups[grp].filter((it) => {
       if (window.License && License.openGenerator) License.openGenerator();
       else UI.toast('Le générateur de licence est disponible dans l\'application installée.', 'warn');
     });
-    document.getElementById('btn-tenant-edit').addEventListener('click', () => {
-      const t = Meta.currentTenant();
-      if (!t) { UI.toast('Connectez-vous en tant qu\'admin global.', 'err'); return; }
-      UI.prompt('Modifier les identifiants du compte global', `
-        <div class="field"><label>Nouvel identifiant</label><input id="te-user" value="${UI.esc(t.username || '')}" autocomplete="off" autocapitalize="none" autocorrect="off"></div>
-        <div class="field"><label>Mot de passe actuel *</label><input id="te-cur" type="password" required autocomplete="new-password"></div>
-        <div class="field"><label>Nouveau mot de passe</label><input id="te-new" type="password" autocomplete="new-password"></div>
-        <div class="field"><label>Confirmation</label><input id="te-new2" type="password" autocomplete="new-password"></div>
-      `, async (body) => {
-        const cur = body.querySelector('#te-cur').value;
-        const nw = body.querySelector('#te-new').value;
-        const nw2 = body.querySelector('#te-new2').value;
-        const username = body.querySelector('#te-user').value.trim();
-        if (!cur) { UI.toast('Mot de passe actuel requis.', 'err'); return false; }
-        if (nw) {
-          if (nw.length < 4) { UI.toast('Le nouveau mot de passe doit contenir au moins 4 caractères.', 'err'); return false; }
-          if (nw !== nw2) { UI.toast('Les nouveaux mots de passe ne correspondent pas.', 'err'); return false; }
-        }
-        if (!username) { UI.toast('Identifiant requis.', 'err'); return false; }
-        const res = await Meta.updateTenant({ username, currentPassword: cur, newPassword: nw || undefined });
-        if (!res.ok) { UI.toast(res.msg, 'err'); return false; }
-        UI.closeModal(); UI.toast('Identifiants du compte global mis à jour.', 'ok'); tenantUi(); renderSchools();
-        return true;
-      }, { size: 'modal modal-sm' });
+    document.getElementById('admin-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      if (!Meta.currentTenant()) { UI.toast('Connectez-vous d\'abord en COMPTE ADMIN (global).', 'err'); return; }
+      const username = document.getElementById('af-username').value.trim();
+      const cur = document.getElementById('af-cur-pwd').value;
+      const nw = document.getElementById('af-new-pwd').value;
+      const nw2 = document.getElementById('af-new-pwd2').value;
+      if (!username) { UI.toast('Identifiant global requis.', 'err'); return; }
+      if (!cur) { UI.toast('Mot de passe actuel requis.', 'err'); return; }
+      if (nw && nw.length < 4) { UI.toast('Le nouveau mot de passe doit contenir au moins 4 caractères.', 'err'); return; }
+      if (nw !== nw2) { UI.toast('Les nouveaux mots de passe ne correspondent pas.', 'err'); return; }
+      const res = await Meta.updateTenant({ username, currentPassword: cur, newPassword: nw || undefined });
+      if (!res.ok) { UI.toast(res.msg, 'err'); return; }
+      document.getElementById('af-cur-pwd').value = '';
+      document.getElementById('af-new-pwd').value = '';
+      document.getElementById('af-new-pwd2').value = '';
+      UI.toast('Compte admin mis à jour.', 'ok');
+      fillAdminForm();
+      renderSchools();
     });
-    document.getElementById('btn-create-school').addEventListener('click', createSchoolPrompt);
+    document.getElementById('af-create-school').addEventListener('click', async () => {
+      if (!Meta.currentTenant()) { UI.toast('Connectez-vous d\'abord en COMPTE ADMIN (global).', 'err'); return; }
+      const inp = document.getElementById('af-new-school');
+      const nom = (inp && inp.value.trim()) || '';
+      if (!nom) { UI.toast('Saisissez le nom de la nouvelle école.', 'err'); if (inp) inp.focus(); return; }
+      await Meta.createSchool(nom);
+      if (inp) inp.value = '';
+      UI.toast('École créée.', 'ok');
+      renderSchools();
+    });
     document.getElementById('btn-manage-accounts').addEventListener('click', openAccountsManager);
     document.getElementById('btn-manage-perms').addEventListener('click', openPermsManager);
     document.getElementById('login-form').addEventListener('submit', async (e) => {
