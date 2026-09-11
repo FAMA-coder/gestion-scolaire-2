@@ -9,7 +9,7 @@ App.register('sauvegarde', {
   navLabel: 'Sauvegarde',
   icon: 'B',
   group: 'Système',
-  perm: 'ecole.manage',
+  perm: 'parametres.sauvegarde',
   hidden: true,
   render: function (root) {
     root.innerHTML = '<div class="bar"><div class="card-title">Sauvegarde des données sur disque</div>' +
