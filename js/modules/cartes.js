@@ -57,7 +57,7 @@ App.register('cartes', {
   navLabel: 'Cartes scolaires',
   icon: 'C',
   group: 'Scolarité',
-  perm: 'eleves.manage',
+  perm: 'cartes.manage',
   render: async function (root) {
     root.innerHTML = `
       <div class="bar"><div class="bar-head"><div class="card-title">Cartes scolaires</div>
@@ -73,6 +73,7 @@ App.register('cartes', {
     const anneeObj = (data.annees || []).find((a) => a.id === (school && school.anneeEnCoursId));
     loadFilter();
     renderList();
+    filterEl.onchange = renderList;
     function loadFilter() {
       filterEl.innerHTML = UI.options(data.classes.map((c) => ({ id: c.id, libelle: Data.classeLabel(c) })), '', 'Toutes les classes');
     }
