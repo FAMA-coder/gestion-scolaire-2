@@ -144,7 +144,7 @@ App.register('volumes', {
   navLabel: 'Volumes horaires',
   icon: 'V',
   group: 'Pédagogie',
-  perm: 'affectations.manage',
+  perm: 'volumes.manage',
   render: async function (root) {
     const now = new Date();
     const defFrom = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
@@ -243,9 +243,9 @@ App.register('volumes', {
 App.register('pointage', {
   title: 'Pointage des cours',
   navLabel: 'Pointage',
-  icon: '⏱',
+  icon: '✓',
   group: 'Pédagogie',
-  perm: 'emplois.manage',
+  perm: 'pointage.manage',
   render: async function (root) {
     const today = UI.today();
     root.innerHTML =
@@ -458,7 +458,7 @@ App.register('honoraires', {
   navLabel: 'Honoraires',
   icon: 'H',
   group: 'Finance',
-  perm: 'salaires.manage',
+  perm: 'honoraires.manage',
   render: async function (root) {
     const now = new Date();
     const defFrom = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0') + '-01';
@@ -716,7 +716,7 @@ App.register('controle', {
   navLabel: 'Contrôle des heures',
   icon: 'C',
   group: 'Pédagogie',
-  perm: 'affectations.manage',
+  perm: 'controle.heures',
 
   render(root) {
     const p = this._panel();
