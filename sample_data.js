@@ -303,10 +303,104 @@ window.SampleData = (function () {
     await add('depenses', { libelle: 'Réparation toiture', categorie: 'Réparations & maintenance', montant: 85000, date: (annee) + '-11-08', mode: 'Espèces', beneficiaire: 'Entreprise BTP+', note: '', dateCreation: now });
     await add('depenses', { libelle: 'Prime de rentrée (personnel)', categorie: 'Salaires & primes', montant: 120000, date: (annee) + '-11-15', mode: 'Espèces', beneficiaire: 'Personnel', note: '', dateCreation: now });
 
+    // ---------- Cycles complémentaires : PRÉSCOLAIRE, PRIMAIRE, SUPÉRIEUR ----------
+    const cySup = await add('cycles', { libelle: 'Supérieur', description: 'Licence universitaire (L1–L3)', enseignantPrincipal: false, dateCreation: now });
+    const nivCM1 = niveaux['CM1'];
+    const nivM2 = niveaux['M2'];
+    const nivL1 = await add('niveaux', { libelle: 'Licence 1', cycleId: cySup, dateCreation: now });
+    classes['CM1A'] = await add('classes', { libelle: 'CM1 A', mention: 'Générale', niveauId: nivCM1, profPrincipalId: null, dateCreation: now });
+    classes['GSA'] = await add('classes', { libelle: 'Grande Section A', mention: '', niveauId: nivM2, profPrincipalId: null, dateCreation: now });
+    classes['L1'] = await add('classes', { libelle: 'Licence 1 Info', mention: 'Informatique & Réseaux', niveauId: nivL1, profPrincipalId: null, dateCreation: now });
+
+    // Matières (UE) du Supérieur
+    matiere['ALGO'] = await add('matieres', { libelle: 'Algorithmique & Programmation', coefficient: 4, cycleId: cySup, dateCreation: now });
+    matiere['BDD'] = await add('matieres', { libelle: 'Bases de données', coefficient: 3, cycleId: cySup, dateCreation: now });
+    matiere['RES'] = await add('matieres', { libelle: 'Réseaux & Systèmes', coefficient: 3, cycleId: cySup, dateCreation: now });
+
+    // Enseignant du Supérieur
+    const ensY = await mkEns2('Kama', 'Idrissa', 'Informatique', 3500, 18);
+
+    // Affectations des nouvelles classes
+    await aff(ensF, matiere['FR'], classes['CM1A'], V(5), [1]);
+    await aff(ensM, matiere['MS'], classes['CM1A'], V(4), [1]);
+    await aff(ensA, matiere['ANG'], classes['CM1A'], V(3), [1]);
+    await aff(ensF, matiere['SPC'], classes['GSA'], V(6), [1]);
+    await aff(ensY, matiere['ALGO'], classes['L1'], V(4), [1.5]);
+    await aff(ensY, matiere['BDD'], classes['L1'], V(3), [1.5]);
+    await aff(ensY, matiere['RES'], classes['L1'], V(3), [1.5]);
+
+    // Élèves des nouvelles classes
+    const elevesCM1 = [];
+    for (let i = 0; i < 5; i++) elevesCM1.push(await mkEleve(nomsFam[(i + 4) % nomsFam.length], prenomsM[(i + 6) % prenomsM.length], 'M', classes['CM1A'], '2013-0' + (1 + (i % 8)) + '-1' + i, 'Tuteur CM1'));
+    for (let i = 0; i < 3; i++) elevesCM1.push(await mkEleve(nomsFam[(i + 9) % nomsFam.length], prenomsF[(i + 2) % prenomsF.length], 'F', classes['CM1A'], '2014-03-1' + i, 'Tuteur CM1'));
+    const elevesGSA = [];
+    for (let i = 0; i < 4; i++) elevesGSA.push(await mkEleve(nomsFam[(i + 7) % nomsFam.length], prenomsF[(i + 4) % prenomsF.length], 'F', classes['GSA'], '2018-03-1' + i, 'Tuteur GS'));
+    const elevesL1 = [];
+    for (let i = 0; i < 5; i++) elevesL1.push(await mkEleve(nomsFam[(i + 2) % nomsFam.length], prenomsM[(i + 5) % prenomsM.length], (i % 2 ? 'F' : 'M'), classes['L1'], '2005-05-1' + i, 'Tuteur L1'));
+
+    // Emploi du temps des nouvelles classes
+    await creneau(classes['CM1A'], matiere['FR'], ensF, salles['A2'], 0, 1);
+    await creneau(classes['CM1A'], matiere['MS'], ensM, salles['A1'], 1, 1);
+    await creneau(classes['CM1A'], matiere['ANG'], ensA, salles['B1'], 2, 1);
+    await creneau(classes['GSA'], matiere['SPC'], ensF, salles['A1'], 0, 2);
+    await creneau(classes['L1'], matiere['ALGO'], ensY, salles['INFO'], 1, 2);
+    await creneau(classes['L1'], matiere['BDD'], ensY, salles['INFO'], 3, 1);
+    await creneau(classes['L1'], matiere['RES'], ensY, salles['INFO'], 4, 1);
+
+    // Notes (devoir /20 + composition /40) du trim 1 pour les nouvelles classes,
+    // réparties sur le trimestre 2 afin d'illustrer les bulletins de plusieurs trimestres.
+    const classeMats2 = {};
+    classeMats2['CM1A'] = [matiere['FR'], matiere['MS'], matiere['ANG']];
+    classeMats2['GSA'] = [matiere['SPC']];
+    classeMats2['L1'] = [matiere['ALGO'], matiere['BDD'], matiere['RES']];
+    const allClasses2 = { 'CM1A': elevesCM1, 'GSA': elevesGSA, 'L1': elevesL1 };
+    for (const clKey of Object.keys(allClasses2)) {
+      const mats = classeMats2[clKey] || [];
+      const cls = allClasses2[clKey];
+      for (const ev of cls) {
+        for (const m of mats) {
+          await add('notes', { eleveId: ev, matiereId: m, trimestreId: t2, type: 'classe', valeur: rand(6, 18), dateCreation: now });
+          await add('notes', { eleveId: ev, matiereId: m, trimestreId: t2, type: 'composition', valeur: rand(10, 36), dateCreation: now });
+        }
+      }
+    }
+
+    // Frais étendus aux nouvelles classes
+    for (const pair of [[tfSco, { 'CM1A': 45000, 'GSA': 30000, 'L1': 120000 }], [tfInsc, { 'CM1A': 10000, 'GSA': 8000, 'L1': 25000 }], [tfCan, { 'CM1A': 8000, 'GSA': 5000 }]]) {
+      const tfObj = await DB.get('typesFrais', pair[0]);
+      for (const clKey of Object.keys(pair[1])) tfObj.montants.push({ classeId: classes[clKey], montant: pair[1][clKey] });
+      await DB.put('typesFrais', tfObj);
+    }
+
+    // Encaissements échantillons pour les nouvelles classes
+    let iX = 0;
+    for (const ev of elevesCM1.concat(elevesGSA, elevesL1.slice(0, 3))) {
+      if (iX >= 8) break;
+      iX++;
+      const tfX = iX % 2 ? tfSco : tfInsc;
+      const mtX = iX % 2 ? 45000 : 10000;
+      await add('fraisEncaissements', { eleveId: ev, typeFraisId: tfX, montant: mtX, date: (annee) + '-11-1' + (iX % 9), mode: iX % 2 ? 'Espèces' : 'Mobile Money', note: 'Paiement (échantillon)', dateCreation: now });
+    }
+
+    // Élève dispensé des frais + élève cas social (seul les frais cochés lui sont dus)
+    const dispEleve = eleves6A[0];
+    if (dispEleve) {
+      const d = await DB.get('eleves', dispEleve);
+      d.dispenseFrais = true;
+      await DB.put('eleves', d);
+    }
+    const socialEleve = eleves3A[1];
+    if (socialEleve) {
+      const s = await DB.get('eleves', socialEleve);
+      s.typeEleve = 'cas_social';
+      s.fraisTypesIds = [tfInsc];
+      await DB.put('eleves', s);
+    }
+
     return {
-      anneeId, trimestres: { t1, t2, t3 }, cycles: { cyPresc, cyF1, cyF2, cySecond },
-      niveaux, salles, matiere, enseignants: { ensM, ensF, ensA, ensP, ensS, ensH },
-      classes, eleves: { eleves6A, eleves6B, eleves3A, elevesTle },
+      anneeId, trimestres: { t1, t2, t3 }, cycles: { cyPresc, cyF1, cyF2, cySecond, cySup },
+      niveaux, salles, matiere, enseignants: { ensM, ensF, ensA, ensP, ensS, ensH, ensY },
+      classes, eleves: { eleves6A, eleves6B, eleves3A, elevesTle, elevesCM1, elevesGSA, elevesL1 },
       typesFrais: { tfSco, tfInsc, tfCan }, encIds
     };
   }
